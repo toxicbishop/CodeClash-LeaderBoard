@@ -38,9 +38,28 @@ Run `pnpm build` before `pnpm start`.
 
 ## Structure
 
-- `src/app/`: App Router pages, root layout and global Tailwind styles.
+```text
+src/
+├── app/               # Page routes & API endpoints (App Router)
+│   ├── layout.tsx
+│   ├── page.tsx       # / (Landing page)
+│   ├── login/         # /login
+│   ├── admin/         # /admin (Competition Admin portal)
+│   ├── lab-admin/     # /lab-admin (Lab Admin portal)
+│   └── api/           # /api/... (REST API endpoints)
+├── components/        # Reusable UI (LeaderboardTable, UploadModal, Badges)
+├── lib/               # Prisma client, database helpers, auth session
+├── services/          # File parser, validation engine, ranking algorithm
+└── types/             # Shared TypeScript interfaces and models
+```
+
+- `src/app/`: App Router pages, root layout, and global Tailwind styles.
+- `src/components/`: Reusable presentation and interactive components.
+- `src/lib/`: Database client (Prisma), utility functions, and authentication session helpers.
+- `src/services/`: Core business logic (file parser, validation engine, ranking calculations).
+- `src/types/`: Shared TypeScript data structures and interfaces.
 - `public/`: Static assets.
-- `docs/`: Requirements, architecture, workflows and planning decisions.
+- `docs/`: Comprehensive requirements, data model, architecture, and operational workflows.
 - `pnpm-lock.yaml`: Resolved dependency versions; commit this file.
 
 The starter uses TypeScript, Tailwind CSS and ESLint. It includes a basic project landing page with system fonts, so builds do not need to fetch fonts.
