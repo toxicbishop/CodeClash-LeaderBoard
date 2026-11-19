@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "admin:sync": "node scripts/seed-admin.ts",
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
