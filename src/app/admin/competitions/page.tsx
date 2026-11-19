@@ -18,7 +18,7 @@ export default async function AdminCompetitionsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect('/');
   }
 
   const { data: currentProfile } = await supabase
@@ -28,7 +28,7 @@ export default async function AdminCompetitionsPage() {
     .single();
 
   if (currentProfile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/login');
+    redirect('/');
   }
 
   // Fetch competitions with count of attached labs

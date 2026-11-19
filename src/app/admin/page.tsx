@@ -16,7 +16,7 @@ export default async function AdminDashboardPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect('/');
   }
 
   const { data: profile } = await supabase
@@ -26,7 +26,7 @@ export default async function AdminDashboardPage() {
     .single();
 
   if (profile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/login');
+    redirect('/');
   }
 
   // Fetch summary counts
