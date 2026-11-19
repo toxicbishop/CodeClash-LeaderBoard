@@ -81,14 +81,14 @@ The backend exposes a modular REST API consumed by both frontend views and autom
 ```mermaid
 flowchart TD
     subgraph LabAdmins["Lab Administrators"]
-        L1["Lab 1 Admin (CSV)"]
-        L2["Lab 2 Admin (XLSX)"]
-        LN["Lab N Admin (CSV)"]
+        L1["Lab 1 Admin - CSV"]
+        L2["Lab 2 Admin - XLSX"]
+        LN["Lab N Admin - CSV"]
     end
 
-    subgraph Ingestion["Ingestion & Validation Pipeline"]
+    subgraph Ingestion["Ingestion and Validation Pipeline"]
         CM["Dynamic Column Mapper"]
-        VP["Validation & Deduplication Engine"]
+        VP["Validation and Deduplication Engine"]
     end
 
     subgraph Database["Central PostgreSQL"]
@@ -100,7 +100,7 @@ flowchart TD
     subgraph AdminConsole["Competition Admin Console"]
         MON["Upload Status Matrix"]
         REV["Approval / Rejection Gate"]
-        RANK["Consolidation & Ranking Engine"]
+        RANK["Consolidation and Ranking Engine"]
     end
 
     subgraph Output["Unified Output"]

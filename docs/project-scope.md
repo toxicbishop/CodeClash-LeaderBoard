@@ -22,15 +22,15 @@ When coding competitions are distributed across multiple physical computer labs,
 
 ```mermaid
 flowchart TD
-    CA["Competition Administrator<br/>(Central Authority)"]
-    LA1["Lab Admin 1<br/>(Lab 1 Management)"]
-    LA2["Lab Admin 2<br/>(Lab 2 Management)"]
-    LAN["Lab Admin N<br/>(Lab N Management)"]
-    PUB["Public / Spectators / Contestants<br/>(Shared Projector & Web View)"]
+    CA["Competition Administrator (Central Authority)"]
+    LA1["Lab Admin 1 - Lab 1 Management"]
+    LA2["Lab Admin 2 - Lab 2 Management"]
+    LAN["Lab Admin N - Lab N Management"]
+    PUB["Public / Spectators / Contestants"]
 
-    CA -->|Configures & Approves| LA1
-    CA -->|Configures & Approves| LA2
-    CA -->|Configures & Approves| LAN
+    CA -->|Configures and Approves| LA1
+    CA -->|Configures and Approves| LA2
+    CA -->|Configures and Approves| LAN
     CA -->|Publishes Unified Snapshot| PUB
     LA1 -->|Uploads Lab 1 CSV/XLSX| CA
     LA2 -->|Uploads Lab 2 CSV/XLSX| CA

@@ -8,10 +8,10 @@ This document formalizes the phased implementation roadmap, architectural decisi
 
 ```mermaid
 flowchart LR
-    P1["Phase 1:<br/>Core Infrastructure & Auth"] --> P2["Phase 2:<br/>Upload & Validation Engine"]
-    P2 --> P3["Phase 3:<br/>Consolidation & Ranking"]
-    P3 --> P4["Phase 4:<br/>Publication & Projector Display"]
-    P4 --> P5["Phase 5:<br/>Enhancements & Integrations"]
+    P1["Phase 1: Core Infrastructure and Auth"] --> P2["Phase 2: Upload and Validation Engine"]
+    P2 --> P3["Phase 3: Consolidation and Ranking"]
+    P3 --> P4["Phase 4: Publication and Projector Display"]
+    P4 --> P5["Phase 5: Enhancements and Integrations"]
 ```
 
 ### Phase 1: Core Infrastructure & Role-Based Access Control
