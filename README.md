@@ -56,7 +56,7 @@ flowchart TD
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm dev
+pnpm run dev
 ```
 
 Open [localhost:3000](http://localhost:3000).
