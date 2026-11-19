@@ -16,7 +16,7 @@ export default async function LabAdminDashboardPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect('/');
   }
 
   const { data: profile } = await supabase
@@ -26,7 +26,7 @@ export default async function LabAdminDashboardPage() {
     .single();
 
   if (profile?.role !== 'LAB_ADMIN' && profile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/login');
+    redirect('/');
   }
 
   // Fetch lab assigned to this admin (with parent competition info)
