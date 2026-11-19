@@ -113,7 +113,7 @@ stateDiagram-v2
     Pending_Approval --> Rejected: Admin Requests Correction
     Rejected --> Awaiting_Upload: Re-upload File
     Pending_Approval --> Approved: Admin Approves
-    Approved --> Processing: All Labs Approved & Consolidation Triggered
+    Approved --> Processing: All Labs Approved - Consolidation Triggered
     Processing --> Ready_for_Review: Leaderboard Generated
     Ready_for_Review --> Published: Admin Publishes
     Published --> [*]

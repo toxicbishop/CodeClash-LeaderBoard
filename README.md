@@ -11,6 +11,42 @@
 
 Next.js starter for the shared Code Clash 2026 leaderboard.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph LabAdmins["Lab Administrators"]
+        L1["Lab 1 Admin"]
+        L2["Lab 2 Admin"]
+        LN["Lab N Admin"]
+    end
+
+    subgraph App["Next.js Application"]
+        UI["Public Leaderboard UI"]
+        ADMIN["Competition Admin Dashboard"]
+        LABUI["Lab Admin Dashboard"]
+        API["REST API Route Handlers"]
+        SVC["Validation and Ranking Services"]
+    end
+
+    subgraph DB["PostgreSQL via Prisma"]
+        UPLOADS[(Uploads)]
+        RESULTS[(Results)]
+        SNAP[(Leaderboard Snapshots)]
+    end
+
+    CA["Competition Administrator"] --> ADMIN
+    L1 & L2 & LN --> LABUI
+    LABUI --> API
+    ADMIN --> API
+    API --> SVC
+    SVC --> UPLOADS
+    SVC --> RESULTS
+    SVC --> SNAP
+    SNAP --> UI
+    UI --> PUB["Shared Projector / Web View"]
+```
+
 ## Requirements
 
 - Node.js 24 LTS (development baseline).
