@@ -4,7 +4,7 @@ import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
 import { NewLabAdminForm } from './NewLabAdminForm';
-import type { User } from '@/types/database';
+import type { Competition, Lab, User } from '@/types/database';
 
 export const instant = false;
 
@@ -41,10 +41,16 @@ export default async function AdminUsersPage() {
   // Fetch lab assignments to show which lab they belong to
   const { data: labs } = await supabase
     .from('labs')
-    .select('assigned_admin_id, lab_name, competitions(competition_name)');
+    .select('assigned_admin_id, lab_name, competitions(competition_name)')
+    .overrideTypes<
+      Array<Pick<Lab, 'assigned_admin_id' | 'lab_name'> & {
+        competitions: Pick<Competition, 'competition_name'> | null;
+      }>,
+      { merge: false }
+    >();
 
   const labMap = new Map<string, { lab_name: string; competition_name: string }>();
-  labs?.forEach((l: any) => {
+  labs?.forEach((l) => {
     labMap.set(l.assigned_admin_id, {
       lab_name: l.lab_name,
       competition_name: l.competitions?.competition_name || 'Unassigned',

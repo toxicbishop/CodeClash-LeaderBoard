@@ -8,6 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test:signin": "playwright test tests/signin.spec.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "read-excel-file": "^9.3.17"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.3.5",
     "@types/node": "^24.19.2",
     "@types/papaparse": "^5.5.2",

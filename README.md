@@ -103,6 +103,11 @@ docs/                                Requirements, data model, workflows, and ro
 | `pnpm typecheck` | Generate Next.js route types and run the TypeScript compiler. |
 | `pnpm build` | Create the production build using Webpack. |
 | `pnpm start` | Serve the production build after `pnpm build`. |
+| `pnpm test:signin` | Start the production build on port 3100 and verify the competition admin sign-in flow in Chromium. |
+
+To run the sign-in test locally, use the local Supabase setup above, run `pnpm build`, and install Chromium with `pnpm exec playwright install chromium`. The test reads the admin credentials from the environment or `.env.local`.
+
+GitHub Actions checks pull requests into `main` and pushes to `main`. CI starts a disposable Supabase stack and seeds a test account on the runner. It runs lint, type checking, the production build, the browser test, a high-severity dependency audit, and a Semgrep source scan.
 
 For the full event workflow and acceptance criteria, see the [documentation index](docs/README.md).
 
