@@ -9,100 +9,98 @@
 ![ESLint](https://img.shields.io/badge/ESLint-4B32C3?logo=eslint&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Next.js starter for the shared Code Clash 2026 leaderboard.
+Code Clash Leaderboard is a web app for running the Code Clash 2026 coding competition across multiple computer labs. Competition administrators set up contests, register labs, and assign lab administrators. The project is being built to let each lab submit its results and combine them into one shared leaderboard that identifies the top qualifiers.
+
+## Competition workflow
+
+| Who | Where | What they can do today |
+| --- | --- | --- |
+| Competition administrator | `/admin/competitions` and `/admin/users` | Create a contest, provision lab admin accounts, register participating labs, and assign each lab an administrator. |
+| Lab administrator | `/lab-admin` | View the assigned lab and deadline, select a CSV or Excel file, map its columns, and inspect the validation report. |
+| Visitor | `/` | The root URL redirects to `/login`. Public rankings are planned for the publication phase. |
+
+The Phase 2 preview runs in the browser. It reads a UTF-8 CSV or the first worksheet of an `.xlsx` file up to 5 MB. Participant ID, participant name, and total score are required. The table shows the first ten records, while the validation report covers the whole file and identifies rows with missing fields, invalid scores, or duplicate participant IDs.
+
+The remaining Phase 2 work covers submitting the mapped file for review, archiving it privately, and monitoring submissions across labs. Later phases cover approval, cross-lab ranking, publication, and exports. See the [delivery plan](docs/decisions-and-delivery.md).
 
 ## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph LabAdmins["Lab Administrators"]
-        L1["Lab 1 Admin"]
-        L2["Lab 2 Admin"]
-        LN["Lab N Admin"]
-    end
-
-    subgraph App["Next.js Application"]
-        UI["Public Leaderboard UI"]
-        ADMIN["Competition Admin Dashboard"]
-        LABUI["Lab Admin Dashboard"]
-        API["REST API Route Handlers"]
-        SVC["Validation and Ranking Services"]
-    end
-
-    subgraph DB["PostgreSQL via Prisma"]
-        UPLOADS[(Uploads)]
-        RESULTS[(Results)]
-        SNAP[(Leaderboard Snapshots)]
-    end
-
-    CA["Competition Administrator"] --> ADMIN
-    L1 & L2 & LN --> LABUI
-    LABUI --> API
-    ADMIN --> API
-    API --> SVC
-    SVC --> UPLOADS
-    SVC --> RESULTS
-    SVC --> SNAP
-    SNAP --> UI
-    UI --> PUB["Shared Projector / Web View"]
+flowchart LR
+    Organizer["Competition administrator"] --> Admin["Next.js admin pages and server actions"]
+    LabAdmin["Lab administrator"] --> Lab["Next.js lab dashboard"]
+    Admin --> Auth["Supabase Auth"]
+    Lab --> Auth
+    Admin --> DB[("Supabase PostgreSQL")]
+    Lab --> DB
+    Lab --> Preview["CSV and Excel preview in the browser"]
 ```
 
-## Requirements
+The app uses the Next.js App Router, React, TypeScript, and Tailwind CSS. The request proxy refreshes Supabase sessions, and protected pages load data through the server client. PostgreSQL migrations define the contest tables and row-level security policies. Papa Parse reads CSV files and read-excel-file reads Excel workbooks.
 
-- Node.js 24 LTS (development baseline).
-- pnpm 11.10.0, as pinned in `package.json`.
+## Local development
 
-## Development
+Use Node.js 24, pnpm 11.10.0, the Supabase CLI, and a running Docker engine. Run the following commands from the repository root.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm run dev
-```
+1. Install dependencies and start the local Supabase stack. On first startup, Supabase applies the migrations in `supabase/migrations/`.
 
-Open [localhost:3000](http://localhost:3000).
+   ```sh
+   pnpm install --frozen-lockfile
+   supabase start
+   supabase status
+   ```
 
-## Checks and production
+2. For a fresh checkout, copy `.env.example` to `.env.local`. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` using the local API URL, anon key, and service-role key from Supabase. Keep the service-role key server-side.
 
-```sh
-pnpm lint
-pnpm typecheck
-pnpm build
-pnpm start
-```
+3. Create the local development competition administrator and start the app.
 
-Run `pnpm build` before `pnpm start`.
+   ```sh
+   node scripts/seed-admin.ts
+   pnpm dev
+   ```
 
-## Structure
+4. Open the [local sign-in page](http://localhost:3000/login) and use the development credentials printed by the seed script. To try the lab workflow, create a competition and a lab admin account, then open the competition to register a lab and assign that account. Sign in as the lab admin to preview a results file.
+
+## Project structure
 
 ```text
 src/
-├── app/               # Page routes & API endpoints (App Router)
-│   ├── layout.tsx
-│   ├── page.tsx       # / (Landing page)
-│   ├── login/         # /login
-│   ├── admin/         # /admin (Competition Admin portal)
-│   ├── lab-admin/     # /lab-admin (Lab Admin portal)
-│   └── api/           # /api/... (REST API endpoints)
-├── components/        # Reusable UI (LeaderboardTable, UploadModal, Badges)
-├── lib/               # Prisma client, database helpers, auth session
-├── services/          # File parser, validation engine, ranking algorithm
-└── types/             # Shared TypeScript interfaces and models
+├── app/
+│   ├── layout.tsx and globals.css   Root layout and shared styles
+│   ├── page.tsx                     Redirect from / to /login
+│   ├── login/                       Sign-in form and authentication actions
+│   ├── admin/
+│   │   ├── page.tsx                 Competition admin dashboard
+│   │   ├── actions.ts               Create competitions, lab admins, and labs
+│   │   ├── competitions/            Contest list and creation form
+│   │   │   └── [id]/                Contest details and lab registration
+│   │   └── users/                   Lab admin accounts
+│   └── lab-admin/
+│       ├── page.tsx                 Assigned lab and submission status
+│       ├── LeaderboardPreview.tsx   File selection, mapping, and report UI
+│       └── leaderboard-preview.ts   File parsing and row validation
+├── components/AdminNav.tsx          Competition admin navigation
+├── lib/supabase/                    Browser, server, and session helpers
+├── proxy.ts                         Next.js request proxy
+└── types/database.ts                Shared database types
+
+supabase/config.toml                 Local Supabase configuration
+supabase/migrations/                 Versioned database migrations
+schema.sql                           SQL schema reference
+scripts/seed-admin.ts                Local development admin setup
+docs/                                Requirements, data model, workflows, and roadmap
 ```
 
-- `src/app/`: App Router pages, root layout, and global Tailwind styles.
-- `src/components/`: Reusable presentation and interactive components.
-- `src/lib/`: Database client (Prisma), utility functions, and authentication session helpers.
-- `src/services/`: Core business logic (file parser, validation engine, ranking calculations).
-- `src/types/`: Shared TypeScript data structures and interfaces.
-- `public/`: Static assets.
-- `docs/`: Comprehensive requirements, data model, architecture, and operational workflows.
-- `pnpm-lock.yaml`: Resolved dependency versions; commit this file.
+## Checks and production build
 
-The starter uses TypeScript, Tailwind CSS and ESLint. It includes a basic project landing page with system fonts, so builds do not need to fetch fonts.
+| Command | Purpose |
+| --- | --- |
+| `pnpm lint` | Run ESLint across the repository. |
+| `pnpm typecheck` | Generate Next.js route types and run the TypeScript compiler. |
+| `pnpm build` | Create the production build using Webpack. |
+| `pnpm start` | Serve the production build after `pnpm build`. |
 
-Development and production builds use Next.js's supported Webpack mode with Tailwind's PostCSS plugin because the default Turbopack CSS worker crashed on this Windows environment. Next.js, React and Tailwind use the latest stable releases fetched during setup. ESLint 9 and TypeScript 6 use the newest compatible versions supported by the Next.js lint plugins; Node type definitions match Node.js 24.
-
-The database, organizer authentication, leaderboard features and HackerRank synchronization are planned work. Start with the [documentation index](./docs/README.md).
+For the full event workflow and acceptance criteria, see the [documentation index](docs/README.md).
 
 ## License
 

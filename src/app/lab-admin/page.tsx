@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logout } from '@/app/login/actions';
+import LeaderboardPreview from './LeaderboardPreview';
+import EmptyStateIcon from '@/components/EmptyStateIcon';
 
 export const instant = false;
 
@@ -84,7 +86,7 @@ export default async function LabAdminDashboardPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {!assignedLab ? (
           <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 shadow-sm">
-            <span className="text-4xl">🔬</span>
+            <EmptyStateIcon name="lab" />
             <h2 className="mt-4 text-xl font-bold text-zinc-900 dark:text-zinc-50">
               No Lab Assigned Yet
             </h2>
@@ -159,15 +161,6 @@ export default async function LabAdminDashboardPage() {
                   </div>
                 </div>
 
-                <div>
-                  <button
-                    disabled
-                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 cursor-not-allowed"
-                    title="Upload engine unlocks in Phase 2"
-                  >
-                    Upload Leaderboard (Phase 2)
-                  </button>
-                </div>
               </div>
 
               {/* Rejection Alert if rejected */}
@@ -178,6 +171,7 @@ export default async function LabAdminDashboardPage() {
                 </div>
               )}
             </div>
+            <LeaderboardPreview />
           </div>
         )}
       </main>

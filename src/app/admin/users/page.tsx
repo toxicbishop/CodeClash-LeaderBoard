@@ -1,3 +1,4 @@
+import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -70,7 +71,7 @@ export default async function AdminUsersPage() {
         <div className="mt-8">
           {(!labAdmins || labAdmins.length === 0) ? (
             <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8">
-              <span className="text-4xl">👥</span>
+              <EmptyStateIcon name="users" />
               <h3 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 No Lab Administrators Yet
               </h3>
