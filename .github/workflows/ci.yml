@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build and sign-in checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Install the project package manager and dependencies
+        run: |
+          npm install --global "$(node -p 'require("./package.json").packageManager')"
+          pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: '3.2.0'
+      - name: Start the disposable Supabase stack
+        run: |
+          supabase start -x studio,imgproxy,logflare,vector,edge-runtime,supavisor,storage-api,realtime,postgres-meta,mailpit
+          config=$(supabase status -o json)
+          anon=$(jq -er '.ANON_KEY' <<< "$config")
+          service=$(jq -er '.SERVICE_ROLE_KEY' <<< "$config")
+          password=$(openssl rand -hex 24)
+          echo "::add-mask::$anon"
+          echo "::add-mask::$service"
+          echo "::add-mask::$password"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(jq -er '.API_URL' <<< "$config")"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$service"
+            echo "COMPETITION_ADMIN_EMAIL=ci-admin@example.test"
+            echo "COMPETITION_ADMIN_PASSWORD=$password"
+          } >> "$GITHUB_ENV"
+      - run: pnpm admin:sync
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:signin
+      - run: pnpm audit --audit-level high
+
+  scan:
+    name: Semgrep source scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - run: pipx run --spec semgrep==1.186.0 semgrep scan --config p/default --metrics=off --error src scripts

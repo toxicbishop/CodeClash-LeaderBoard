@@ -158,7 +158,7 @@ export default async function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                  {recentCompetitions.map((comp: any) => (
+                  {recentCompetitions.map((comp) => (
                     <tr key={comp.competition_id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
                       <td className="px-6 py-4">
                         <div className="font-semibold text-zinc-900 dark:text-zinc-100">

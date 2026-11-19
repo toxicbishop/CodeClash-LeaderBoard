@@ -62,8 +62,8 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
     .eq('competition_id', competitionId)
     .order('upload_version', { ascending: false });
 
-  const latestUploadByLab = new Map<string, any>();
-  uploads?.forEach((up: any) => {
+  const latestUploadByLab = new Map<string, NonNullable<typeof uploads>[number]>();
+  uploads?.forEach((up) => {
     if (!latestUploadByLab.has(up.lab_id)) {
       latestUploadByLab.set(up.lab_id, up);
     }
@@ -77,7 +77,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
     .eq('account_status', 'ACTIVE');
 
   // Filter out admins already assigned to a lab in this competition
-  const assignedAdminIds = new Set(labs?.map((l: any) => l.assigned_admin_id) || []);
+  const assignedAdminIds = new Set(labs?.map((l) => l.assigned_admin_id) || []);
   const availableAdmins = (allLabAdmins || []).filter(
     (adm: User) => !assignedAdminIds.has(adm.user_id)
   );
@@ -178,7 +178,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                  {labs.map((lab: any) => {
+                  {labs.map((lab) => {
                     const latestUpload = latestUploadByLab.get(lab.lab_id);
                     const uploadStatus = latestUpload ? latestUpload.status : 'AWAITING_UPLOAD';
 

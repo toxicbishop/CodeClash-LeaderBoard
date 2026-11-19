@@ -5,7 +5,6 @@ import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
 import { NewCompetitionForm } from './NewCompetitionForm';
-import type { Competition } from '@/types/database';
 
 export const instant = false;
 
@@ -67,7 +66,7 @@ export default async function AdminCompetitionsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {competitions.map((comp: any) => {
+              {competitions.map((comp) => {
                 const labCount = comp.labs?.length || 0;
                 return (
                   <div
