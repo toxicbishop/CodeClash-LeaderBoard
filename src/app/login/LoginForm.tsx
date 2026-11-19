@@ -24,16 +24,15 @@ export function LoginForm() {
             htmlFor="email"
             className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
           >
-            Email address
+            Username
           </label>
           <div className="mt-1">
             <input
               id="email"
               name="email"
-              type="email"
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               required
-              placeholder="admin@codeclash.com"
               className="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3.5 py-2.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors"
             />
           </div>
@@ -53,7 +52,6 @@ export function LoginForm() {
               type={passwordVisible ? 'text' : 'password'}
               autoComplete="current-password"
               required
-              placeholder="••••••••"
               className="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-3.5 pr-12 py-2.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors [&::-ms-reveal]:hidden"
             />
             <button
