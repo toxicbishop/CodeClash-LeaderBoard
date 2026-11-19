@@ -23,6 +23,7 @@ export default async function LabAdminDashboardPage() {
     .from('users')
     .select('*')
     .eq('user_id', user.id)
+    .eq('account_status', 'ACTIVE')
     .single();
 
   if (profile?.role !== 'LAB_ADMIN' && profile?.role !== 'COMPETITION_ADMIN') {
