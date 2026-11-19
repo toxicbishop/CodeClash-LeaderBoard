@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -135,7 +136,7 @@ export default async function AdminDashboardPage() {
 
           {(!recentCompetitions || recentCompetitions.length === 0) ? (
             <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 mt-6 p-8">
-              <span className="text-3xl">🏁</span>
+              <EmptyStateIcon name="flag" />
               <h3 className="mt-3 text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 Ready to host your first competition
               </h3>
