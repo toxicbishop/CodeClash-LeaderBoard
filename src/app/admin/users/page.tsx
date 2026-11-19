@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
 import { NewLabAdminForm } from './NewLabAdminForm';
@@ -7,6 +8,8 @@ import type { User } from '@/types/database';
 export const instant = false;
 
 export default async function AdminUsersPage() {
+  await connection();
+
   const supabase = await createClient();
   const {
     data: { user },

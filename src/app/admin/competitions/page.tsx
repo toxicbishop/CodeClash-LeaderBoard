@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
 import { NewCompetitionForm } from './NewCompetitionForm';
@@ -8,6 +9,8 @@ import type { Competition } from '@/types/database';
 export const instant = false;
 
 export default async function AdminCompetitionsPage() {
+  await connection();
+
   const supabase = await createClient();
   const {
     data: { user },

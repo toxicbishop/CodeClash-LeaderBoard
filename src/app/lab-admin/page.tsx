@@ -1,10 +1,13 @@
 import { redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logout } from '@/app/login/actions';
 
 export const instant = false;
 
 export default async function LabAdminDashboardPage() {
+  await connection();
+
   const supabase = await createClient();
   const {
     data: { user },

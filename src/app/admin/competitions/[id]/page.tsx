@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
 import { AddLabForm } from './AddLabForm';
@@ -12,6 +13,8 @@ interface PageProps {
 }
 
 export default async function CompetitionDetailPage({ params }: PageProps) {
+  await connection();
+
   const { id: competitionId } = await params;
   const supabase = await createClient();
 
