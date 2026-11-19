@@ -52,14 +52,18 @@ Use Node.js 24, pnpm 11.10.0, the Supabase CLI, and a running Docker engine. Run
 
 2. For a fresh checkout, copy `.env.example` to `.env.local`. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` using the local API URL, anon key, and service-role key from Supabase. Keep the service-role key server-side.
 
-3. Create the local development competition administrator and start the app.
+3. In `.env.local`, set `COMPETITION_ADMIN_EMAIL` and `COMPETITION_ADMIN_PASSWORD` for the main competition administrator. Create the account and start the app.
 
    ```sh
-   node scripts/seed-admin.ts
+   pnpm admin:sync
    pnpm dev
    ```
 
-4. Open the [local sign-in page](http://localhost:3000/login) and use the development credentials printed by the seed script. To try the lab workflow, create a competition and a lab admin account, then open the competition to register a lab and assign that account. Sign in as the lab admin to preview a results file.
+4. Open the [local sign-in page](http://localhost:3000/login) and use the credentials you configured. To try the lab workflow, create a competition and a lab admin account, then open the competition to register a lab and assign that account. Sign in as the lab admin to preview a results file.
+
+### Rotate the main admin password
+
+Keep `COMPETITION_ADMIN_EMAIL` set to the existing administrator's email. Change `COMPETITION_ADMIN_PASSWORD` in the git-ignored `.env.local` and run `pnpm admin:sync` from the repository root. The command applies the password to the same Supabase account. You can then sign in with the new password. The email selects the account to manage, so setting an unused email provisions a separate administrator.
 
 ## Project structure
 
