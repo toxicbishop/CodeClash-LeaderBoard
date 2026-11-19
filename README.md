@@ -65,6 +65,10 @@ Use Node.js 24, pnpm 11.10.0, the Supabase CLI, and a running Docker engine. Run
 
 Keep `COMPETITION_ADMIN_EMAIL` set to the existing administrator's email. Change `COMPETITION_ADMIN_PASSWORD` in the git-ignored `.env.local` and run `pnpm admin:sync` from the repository root. The command applies the password to the same Supabase account. You can then sign in with the new password. The email selects the account to manage, so setting an unused email provisions a separate administrator.
 
+### Supabase Auth settings
+
+Competition administrators provision lab accounts. Public sign-up is disabled in the local Supabase configuration. Before deployment, disable public sign-up in the hosted Auth settings and verify the sign-in rate limit for the event. The local limit is 30 sign-in and sign-up requests per five minutes per IP. Labs that share a public IP share that allowance.
+
 ## Project structure
 
 ```text
@@ -104,6 +108,8 @@ docs/                                Requirements, data model, workflows, and ro
 | `pnpm build` | Create the production build using Webpack. |
 | `pnpm start` | Serve the production build after `pnpm build`. |
 | `pnpm test:signin` | Start the production build on port 3100 and verify the competition admin sign-in flow in Chromium. |
+| `pnpm test:permissions` | Check role and account-status enforcement in admin server actions. |
+| `supabase test db` | Exercise upload row-level security against a migrated local Supabase database. |
 
 To run the sign-in test locally, use the local Supabase setup above, run `pnpm build`, and install Chromium with `pnpm exec playwright install chromium`. The test reads the admin credentials from the environment or `.env.local`.
 

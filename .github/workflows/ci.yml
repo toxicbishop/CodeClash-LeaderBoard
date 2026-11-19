@@ -33,6 +33,7 @@ jobs:
           pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm test:permissions
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
           version: '3.2.0'
@@ -54,6 +55,11 @@ jobs:
             echo "COMPETITION_ADMIN_PASSWORD=$password"
           } >> "$GITHUB_ENV"
       - run: pnpm admin:sync
+      - run: supabase test db
+      - name: Verify public account registration is disabled
+        run: |
+          curl --fail --silent --show-error -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/settings" | jq -e '.disable_signup == true'
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:signin
