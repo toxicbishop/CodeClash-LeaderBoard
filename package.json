@@ -8,6 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test:permissions": "vitest run",
     "test:signin": "playwright test tests/signin.spec.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
@@ -30,7 +31,8 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.5",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.1"
   },
   "packageManager": "pnpm@11.10.0"
 }

@@ -25,6 +25,7 @@ export default async function AdminUsersPage() {
     .from('users')
     .select('name, role')
     .eq('user_id', user.id)
+    .eq('account_status', 'ACTIVE')
     .single();
 
   if (currentProfile?.role !== 'COMPETITION_ADMIN') {

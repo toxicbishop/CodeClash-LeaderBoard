@@ -10,6 +10,22 @@ export type ActionResponse = {
   data?: unknown;
 };
 
+const permissionError = { error: 'An active competition administrator account is required.' };
+
+async function getCompetitionAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase.from('users')
+    .select('role, account_status')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (profile?.role !== 'COMPETITION_ADMIN' || profile.account_status !== 'ACTIVE') return null;
+  return { supabase, user };
+}
+
 /**
  * 1. Create a new Competition
  */
@@ -17,14 +33,9 @@ export async function createCompetition(
   prevState: ActionResponse,
   formData: FormData
 ): Promise<ActionResponse> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: 'Unauthorized: please log in.' };
-  }
+  const admin = await getCompetitionAdmin();
+  if (!admin) return permissionError;
+  const { supabase, user } = admin;
 
   const competition_name = (formData.get('competition_name') as string)?.trim();
   const slug = (formData.get('slug') as string)?.trim().toLowerCase();
@@ -86,14 +97,7 @@ export async function createLabAdmin(
   prevState: ActionResponse,
   formData: FormData
 ): Promise<ActionResponse> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: 'Unauthorized.' };
-  }
+  if (!(await getCompetitionAdmin())) return permissionError;
 
   const name = (formData.get('name') as string)?.trim();
   const email = (formData.get('email') as string)?.trim().toLowerCase();
@@ -150,14 +154,9 @@ export async function createLab(
   prevState: ActionResponse,
   formData: FormData
 ): Promise<ActionResponse> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: 'Unauthorized.' };
-  }
+  const admin = await getCompetitionAdmin();
+  if (!admin) return permissionError;
+  const { supabase } = admin;
 
   const competition_id = formData.get('competition_id') as string;
   const lab_name = (formData.get('lab_name') as string)?.trim();
