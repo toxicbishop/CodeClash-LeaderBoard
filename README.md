@@ -17,7 +17,7 @@ Code Clash Leaderboard is a web app for running the Code Clash 2026 coding compe
 | --- | --- | --- |
 | Competition administrator | `/admin/competitions` and `/admin/users` | Create a contest, provision lab admin accounts, register participating labs, and assign each lab an administrator. |
 | Lab administrator | `/lab-admin` | View the assigned lab and deadline, select a CSV or Excel file, map its columns, and inspect the validation report. |
-| Visitor | `/` | The root URL redirects to `/login`. Public rankings are planned for the publication phase. |
+| Visitor | `/` | Sign in to the administrator portal. Public rankings are planned for the publication phase. |
 
 The Phase 2 preview runs in the browser. It reads a UTF-8 CSV or the first worksheet of an `.xlsx` file up to 5 MB. Participant ID, participant name, and total score are required. The table shows the first ten records, while the validation report covers the whole file and identifies rows with missing fields, invalid scores, or duplicate participant IDs.
 
@@ -59,7 +59,7 @@ Use Node.js 24, pnpm 11.10.0, the Supabase CLI, and a running Docker engine. Run
    pnpm dev
    ```
 
-4. Open the [local sign-in page](http://localhost:3000/login) and use the credentials you configured. To try the lab workflow, create a competition and a lab admin account, then open the competition to register a lab and assign that account. Sign in as the lab admin to preview a results file.
+4. Open the [local sign-in page](http://localhost:3000/) and use the credentials you configured. To try the lab workflow, create a competition and a lab admin account, then open the competition to register a lab and assign that account. Sign in as the lab admin to preview a results file.
 
 ### Rotate the main admin password
 
@@ -71,7 +71,7 @@ Keep `COMPETITION_ADMIN_EMAIL` set to the existing administrator's email. Change
 src/
 ├── app/
 │   ├── layout.tsx and globals.css   Root layout and shared styles
-│   ├── page.tsx                     Redirect from / to /login
+│   ├── page.tsx                     Administrator sign-in at /
 │   ├── login/                       Sign-in form and authentication actions
 │   ├── admin/
 │   │   ├── page.tsx                 Competition admin dashboard

@@ -1,15 +1,17 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { login, type ActionState } from './actions';
 
 const initialState: ActionState = { error: null };
 
 export function LoginForm() {
   const [state, formAction, isPending] = useActionState(login, initialState);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const visibilityLabel = passwordVisible ? 'Hide password' : 'Show password';
 
   return (
-    <form action={formAction} className="mt-8 space-y-6">
+    <form action={formAction} className="login-form mt-8 space-y-6">
       {state.error && (
         <div className="rounded-md bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-600 dark:text-red-400">
           <p className="font-medium">{state.error}</p>
@@ -44,16 +46,30 @@ export function LoginForm() {
           >
             Password
           </label>
-          <div className="mt-1">
+          <div className="relative mt-1">
             <input
               id="password"
               name="password"
-              type="password"
+              type={passwordVisible ? 'text' : 'password'}
               autoComplete="current-password"
               required
               placeholder="••••••••"
-              className="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3.5 py-2.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors"
+              className="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-3.5 pr-12 py-2.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors [&::-ms-reveal]:hidden"
             />
+            <button
+              type="button"
+              aria-label={visibilityLabel}
+              aria-controls="password"
+              title={visibilityLabel}
+              onClick={() => setPasswordVisible((visible) => !visible)}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-zinc-500 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-5">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+                {passwordVisible && <path d="m3 3 18 18" />}
+              </svg>
+            </button>
           </div>
         </div>
       </div>

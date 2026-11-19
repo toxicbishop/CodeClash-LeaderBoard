@@ -17,7 +17,7 @@ export default async function AdminUsersPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect('/');
   }
 
   // Fetch current admin profile
@@ -28,7 +28,7 @@ export default async function AdminUsersPage() {
     .single();
 
   if (currentProfile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/login');
+    redirect('/');
   }
 
   // Fetch all Lab Admins
