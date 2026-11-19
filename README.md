@@ -11,6 +11,14 @@
 
 Code Clash Leaderboard is a web app for running the Code Clash 2026 coding competition across multiple computer labs. Competition administrators set up contests, register labs, and assign lab administrators. The project is being built to let each lab submit its results and combine them into one shared leaderboard that identifies the top qualifiers.
 
+## Screenshots
+
+Visual preview of the administrator sign-in portal and the competition overview dashboard:
+
+| Administrator Sign-in | Competition Dashboard |
+| :---: | :---: |
+| ![Sign-in Page](public/Loginpage.png) | ![Competition Dashboard](public/Dashboard.png) |
+
 ## Competition workflow
 
 | Who | Where | What they can do today |
