@@ -1,7 +1,34 @@
 import { createClient } from '@supabase/supabase-js';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Helper to load .env.local if not already in process.env
+function loadEnvLocal() {
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const [key, ...rest] = trimmed.split('=');
+      const val = rest.join('=').trim().replace(/^["']|["']$/g, '');
+      if (key && !process.env[key.trim()]) {
+        process.env[key.trim()] = val;
+      }
+    }
+  }
+}
+
+loadEnvLocal();
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'your_local_service_role_key_here';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!serviceRoleKey) {
+  console.error('ERROR: SUPABASE_SERVICE_ROLE_KEY environment variable is missing.');
+  console.error('Please ensure .env.local is configured with SUPABASE_SERVICE_ROLE_KEY from "supabase status".');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: {
