@@ -1,99 +1,76 @@
 import { createClient } from '@supabase/supabase-js';
-import * as fs from 'fs';
-import * as path from 'path';
+import { existsSync } from 'node:fs';
+import { loadEnvFile } from 'node:process';
 
-// Helper to load .env.local if not already in process.env
-function loadEnvLocal() {
-  const envPath = path.resolve(process.cwd(), '.env.local');
-  if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const [key, ...rest] = trimmed.split('=');
-      const val = rest.join('=').trim().replace(/^["']|["']$/g, '');
-      if (key && !process.env[key.trim()]) {
-        process.env[key.trim()] = val;
-      }
-    }
-  }
+for (const file of ['.env.local', '.env']) {
+  if (existsSync(file)) loadEnvFile(file);
 }
 
-loadEnvLocal();
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!serviceRoleKey) {
-  console.error('ERROR: SUPABASE_SERVICE_ROLE_KEY environment variable is missing.');
-  console.error('Please ensure .env.local is configured with SUPABASE_SERVICE_ROLE_KEY from "supabase status".');
-  process.exit(1);
+function required(name: string) {
+  const value = process.env[name];
+  if (!value?.trim()) throw new Error(`Set ${name} in .env.local or the environment.`);
+  return value;
 }
-
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
 
 async function main() {
-  const adminEmail = 'admin@codeclash.com';
-  const adminPassword = 'AdminPassword123!';
-  const adminName = 'Lead Competition Admin';
-
-  console.log(`Checking if admin user exists (${adminEmail})...`);
-
-  // Check if user already exists
-  const { data: userList } = await supabase.auth.admin.listUsers();
-  const existingUser = userList.users.find((u) => u.email === adminEmail);
-
-  let userId: string;
-
-  if (existingUser) {
-    console.log(`Admin user already exists with ID: ${existingUser.id}`);
-    userId = existingUser.id;
-  } else {
-    console.log('Creating admin in auth.users...');
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
-      email_confirm: true,
-      user_metadata: {
-        name: adminName,
-        role: 'COMPETITION_ADMIN',
-      },
-    });
-
-    if (createError || !newUser.user) {
-      console.error('Failed to create auth user:', createError);
-      process.exit(1);
-    }
-
-    userId = newUser.user.id;
-    console.log(`Created auth user: ${userId}`);
-  }
-
-  // Upsert profile in public.users
-  console.log('Upserting public.users profile...');
-  const { error: profileError } = await supabase.from('users').upsert({
-    user_id: userId,
-    name: adminName,
-    email: adminEmail,
-    role: 'COMPETITION_ADMIN',
-    account_status: 'ACTIVE',
+  const email = required('COMPETITION_ADMIN_EMAIL').trim().toLowerCase();
+  const password = required('COMPETITION_ADMIN_PASSWORD');
+  const supabase = createClient(required('NEXT_PUBLIC_SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
+  const admin = supabase.auth.admin;
+  const name = 'Lead Competition Admin';
+  const role = 'COMPETITION_ADMIN';
 
-  if (profileError) {
-    console.error('Failed to upsert profile:', profileError);
-    process.exit(1);
+  // Look up the Auth identity first so a retry after a failed profile insert is safe.
+  let userId: string | undefined;
+  let createdBySeed = false;
+  let page = 1;
+  while (true) {
+    const { data, error } = await admin.listUsers({ page, perPage: 100 });
+    if (error) throw error;
+    const user = data.users.find((entry) => entry.email?.toLowerCase() === email);
+    if (user) {
+      userId = user.id;
+      createdBySeed = user.app_metadata.competition_admin_seed === true;
+      break;
+    }
+    if (!data.nextPage) break;
+    page = data.nextPage;
   }
 
-  console.log('\n=============================================');
-  console.log('Default Competition Admin created successfully!');
-  console.log(`Email:    ${adminEmail}`);
-  console.log(`Password: ${adminPassword}`);
-  console.log('=============================================\n');
+  if (userId) {
+    const { data: profile, error } = await supabase.from('users')
+      .select('role').eq('user_id', userId).maybeSingle();
+    if (error) throw error;
+    if (profile ? profile.role !== role : !createdBySeed) {
+      throw new Error('The configured email belongs to an existing account without a competition administrator profile.');
+    }
+    const { error: updateError } = await admin.updateUserById(userId, { password });
+    if (updateError && updateError.code !== 'same_password') throw updateError;
+    if (profile) {
+      console.log('Competition administrator password synchronized.');
+      return;
+    }
+  } else {
+    const { data, error } = await admin.createUser({
+      email, password, email_confirm: true,
+      user_metadata: { name, role },
+      app_metadata: { competition_admin_seed: true },
+    });
+    if (error) throw error;
+    userId = data.user.id;
+  }
+
+  const { error } = await supabase.from('users').upsert(
+    { user_id: userId, email, name, role, account_status: 'ACTIVE' },
+    { onConflict: 'user_id', ignoreDuplicates: true },
+  );
+  if (error) throw error;
+  console.log('Competition administrator account ready.');
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : 'Admin credential sync failed.');
+  process.exitCode = 1;
+});
