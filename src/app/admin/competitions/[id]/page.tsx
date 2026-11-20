@@ -81,7 +81,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
             <div>
               <div className="flex items-center space-x-3">
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                  {competition.status.replace('_', ' ')}
+                  {competition.status.replaceAll('_', ' ')}
                 </span>
                 <span className="text-xs text-zinc-400 font-mono">
                   Slug: /{competition.slug}
@@ -187,7 +187,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${statusBadgeClass}`}
                           >
-                            {uploadStatus.replace('_', ' ')}
+                            {uploadStatus.replaceAll('_', ' ')}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-xs text-zinc-600 dark:text-zinc-400 font-mono">
