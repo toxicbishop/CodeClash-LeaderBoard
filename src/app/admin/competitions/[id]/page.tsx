@@ -3,6 +3,8 @@ import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/AdminNav';
 import { AddLabForm } from './AddLabForm';
+import { UploadReviewModal } from './UploadReviewModal';
+import { CompetitionLifecycleBar } from './CompetitionLifecycleBar';
 import type { User } from '@/types/database';
 import { requireCompetitionAdmin } from '@/lib/auth/guards';
 
@@ -61,6 +63,14 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
     (adm: User) => !assignedAdminIds.has(adm.user_id)
   );
 
+  const labCount = labs?.length || 0;
+  const submittedCount = Array.from(latestUploadByLab.values()).filter(
+    (u) => u.status === 'PENDING_APPROVAL' || u.status === 'APPROVED'
+  ).length;
+  const approvedCount = Array.from(latestUploadByLab.values()).filter(
+    (u) => u.status === 'APPROVED'
+  ).length;
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin/competitions" adminName={profile.name} />
@@ -97,27 +107,51 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
               )}
             </div>
 
-            <div className="flex flex-col sm:items-end text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
-              <div>
-                Date:{' '}
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  {new Date(competition.contest_date).toLocaleDateString()}
-                </span>
+            <div className="flex flex-col sm:items-end text-xs text-zinc-500 dark:text-zinc-400 space-y-2">
+              <div className="space-y-1 text-left sm:text-right">
+                <div>
+                  Date:{' '}
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {new Date(competition.contest_date).toLocaleDateString()}
+                  </span>
+                </div>
+                <div>
+                  Deadline:{' '}
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {new Date(competition.upload_deadline).toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  Top-K Qualifier:{' '}
+                  <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                    Top {competition.top_k}
+                  </span>
+                </div>
               </div>
-              <div>
-                Deadline:{' '}
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  {new Date(competition.upload_deadline).toLocaleString()}
-                </span>
-              </div>
-              <div>
-                Top-K Qualifier:{' '}
-                <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-                  Top {competition.top_k}
-                </span>
-              </div>
+
+              <Link
+                href={`/competitions/${competition.slug}/leaderboard`}
+                target="_blank"
+                className="mt-2 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              >
+                <span>View Leaderboard</span>
+                <span>↗</span>
+              </Link>
             </div>
           </div>
+        </div>
+
+        {/* Pipeline Stepper & Publish Controls */}
+        <div className="mt-8">
+          <CompetitionLifecycleBar
+            competitionId={competitionId}
+            slug={competition.slug}
+            status={competition.status}
+            labCount={labCount}
+            submittedCount={submittedCount}
+            approvedCount={approvedCount}
+            topK={competition.top_k}
+          />
         </div>
 
         {/* Participating Laboratories */}
@@ -154,6 +188,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                     <th className="px-6 py-3.5">Upload Status</th>
                     <th className="px-6 py-3.5">Submitted File</th>
                     <th className="px-6 py-3.5">Records</th>
+                    <th className="px-6 py-3.5 text-right">Review Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -195,6 +230,20 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                         </td>
                         <td className="px-6 py-4 text-xs font-medium text-zinc-900 dark:text-zinc-100">
                           {latestUpload?.record_count ?? '—'}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {latestUpload ? (
+                            <UploadReviewModal
+                              uploadId={latestUpload.upload_id}
+                              competitionId={competitionId}
+                              labName={lab.lab_name}
+                              fileName={latestUpload.file_name}
+                              recordCount={latestUpload.record_count}
+                              status={latestUpload.status}
+                            />
+                          ) : (
+                            <span className="text-xs text-zinc-400">Awaiting Upload</span>
+                          )}
                         </td>
                       </tr>
                     );

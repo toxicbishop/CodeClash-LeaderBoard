@@ -39,3 +39,44 @@ body {
 .login-form input:is(:autofill, :-webkit-autofill):focus {
   outline: 2px solid var(--color-indigo-500);
 }
+
+/* ==========================================================================
+   Projector View (Auditorium & Big-Screen Mode)
+   ========================================================================== */
+.projector-view table {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.projector-view table th {
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.projector-view table td {
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+/* ==========================================================================
+   Print / PDF Styles
+   ========================================================================== */
+@media print {
+  header,
+  button,
+  input,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .projector-view table,
+  table {
+    font-size: 10pt !important;
+  }
+}
