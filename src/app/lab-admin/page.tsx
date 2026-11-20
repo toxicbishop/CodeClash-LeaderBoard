@@ -172,7 +172,7 @@ export default async function LabAdminDashboardPage() {
                 </div>
               )}
             </div>
-            <LeaderboardPreview />
+            <LeaderboardPreview competitionId={assignedLab.competition_id} labId={assignedLab.lab_id} />
           </div>
         )}
       </main>
