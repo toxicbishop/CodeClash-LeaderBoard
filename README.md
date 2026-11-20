@@ -23,13 +23,11 @@ Visual preview of the administrator sign-in portal and the competition overview 
 
 | Who | Where | What they can do today |
 | --- | --- | --- |
-| Competition administrator | `/admin/competitions` and `/admin/users` | Create a contest, provision lab admin accounts, register participating labs, and assign each lab an administrator. |
-| Lab administrator | `/lab-admin` | View the assigned lab and deadline, select a CSV or Excel file, map its columns, and inspect the validation report. |
+| Competition administrator | `/admin/competitions` and `/admin/users` | Create a contest, provision lab admin accounts, register participating labs, assign administrators, and monitor upload statuses. |
+| Lab administrator | `/lab-admin` | View assigned lab and deadline, select and preview CSV or Excel results, map columns, validate records, and submit for administrator review. |
 | Visitor | `/` | Sign in to the administrator portal. Public rankings are planned for the publication phase. |
 
-The Phase 2 preview runs in the browser. It reads a UTF-8 CSV or the first worksheet of an `.xlsx` file up to 5 MB. Participant ID, participant name, and total score are required. The table shows the first ten records, while the validation report covers the whole file and identifies rows with missing fields, invalid scores, or duplicate participant IDs.
-
-The remaining Phase 2 work covers submitting the mapped file for review, archiving it privately, and monitoring submissions across labs. Later phases cover approval, cross-lab ranking, publication, and exports. See the [delivery plan](docs/decisions-and-delivery.md).
+Phase 2 provides end-to-end upload management and validation. Lab administrators map and validate CSV or Excel files in the browser, then submit them for review. Submissions are securely archived in Supabase Storage, participant records are staged, and competition administrators track submission versions and record counts in the upload monitoring matrix. Later phases cover approval, cross-lab consolidation and ranking, publication, and exports. See the [delivery plan](docs/decisions-and-delivery.md).
 
 ## Architecture
 
