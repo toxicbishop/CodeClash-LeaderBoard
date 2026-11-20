@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { LeaderboardControlPanel, Snapshot } from './LeaderboardControlPanel';
 
 export const instant = false;
 
@@ -25,6 +26,17 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
     .select('*, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)')
     .eq('competition_id', competitionId)
     .order('set_code', { ascending: true });
+
+  const { data: snapshots } = await supabase
+    .from('leaderboard_snapshots')
+    .select('*')
+    .eq('competition_id', competitionId)
+    .order('version', { ascending: false });
+
+  const hasApprovedUploads = (sets || []).some((set) => {
+    const uploads = (set.uploads as { status: string }[]) ?? [];
+    return uploads.some((u) => u.status === 'APPROVED');
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -143,6 +155,16 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
               </table>
             </div>
           )}
+        </div>
+
+        {/* Leaderboard Snapshots & Actions */}
+        <div className="mt-12 pt-10 border-t border-zinc-200 dark:border-zinc-800">
+          <LeaderboardControlPanel
+            competitionId={competitionId}
+            competitionSlug={competition.slug}
+            snapshots={(snapshots as unknown as Snapshot[]) || []}
+            hasApprovedUploads={hasApprovedUploads}
+          />
         </div>
       </main>
     </div>
