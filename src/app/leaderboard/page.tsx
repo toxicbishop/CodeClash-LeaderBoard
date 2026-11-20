@@ -2,6 +2,25 @@ import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase/server';
 import { LeaderboardTable, LeaderboardRowItem } from '@/app/competitions/[slug]/leaderboard/LeaderboardTable';
 import { FatFooter } from '@/components/FatFooter';
+import type { Competition } from '@/types/database';
+
+interface RawEntry {
+  entry_id: string;
+  overall_rank: number;
+  total_score: number | string;
+  problems_solved: number;
+  penalty: number | null;
+  is_qualified: boolean;
+  participant_id: string;
+  lab_id: string;
+  participants: {
+    external_participant_id: string;
+    participant_name: string;
+  } | null;
+  labs: {
+    lab_name: string;
+  } | null;
+}
 
 export const metadata = {
   title: 'Live Leaderboard | Code Clash 2026',
@@ -20,7 +39,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
   const adminClient = createAdminClient();
 
   // 1. Fetch competition: either requested by query, or the active/published one
-  let activeComp: any = null;
+  let activeComp: Competition | null = null;
 
   if (requestedSlug) {
     const { data } = await adminClient
@@ -109,7 +128,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       .order('total_score', { ascending: false });
 
     if (entries) {
-      rowItems = entries.map((e: any) => ({
+      rowItems = (entries as unknown as RawEntry[]).map((e) => ({
         entry_id: e.entry_id,
         overall_rank: e.overall_rank,
         total_score: Number(e.total_score),

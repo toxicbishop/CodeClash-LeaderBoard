@@ -365,7 +365,6 @@ export function LeaderboardTable({
               </tr>
             ) : (
               filtered.map((item) => {
-                const isPodium = item.overall_rank <= 3;
                 return (
                   <tr
                     key={item.entry_id}

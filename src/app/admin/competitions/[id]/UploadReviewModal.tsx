@@ -12,10 +12,49 @@ interface UploadReviewModalProps {
   status: string;
 }
 
+interface ReviewUpload {
+  upload_id: string;
+  file_name: string;
+  file_path: string;
+  upload_version: number;
+  status: string;
+  record_count: number;
+  uploaded_at: string;
+  rejection_reason?: string | null;
+  users?: {
+    name?: string | null;
+    email?: string | null;
+  } | null;
+  labs?: {
+    lab_id: string;
+    lab_name: string;
+  } | null;
+}
+
+interface ReviewResult {
+  result_id: string;
+  total_score: number | string;
+  problems_solved: number;
+  penalty: number | null;
+  participants?: {
+    participant_id?: string;
+    external_participant_id?: string;
+    participant_name?: string;
+  } | null;
+}
+
+interface ReviewIssue {
+  issue_id: string;
+  row_number: number;
+  field_name?: string | null;
+  issue_type: string;
+  message: string;
+}
+
 type ReviewData = {
-  upload: any;
-  results: any[];
-  issues: any[];
+  upload: ReviewUpload;
+  results: ReviewResult[];
+  issues: ReviewIssue[];
 };
 
 export function UploadReviewModal({
@@ -229,7 +268,7 @@ export function UploadReviewModal({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                          {reviewData.results.map((res: any, idx: number) => (
+                          {reviewData.results.map((res: ReviewResult, idx: number) => (
                             <tr key={res.result_id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
                               <td className="px-4 py-2 text-zinc-400 font-mono">{idx + 1}</td>
                               <td className="px-4 py-2 font-mono font-medium text-zinc-800 dark:text-zinc-200">
@@ -270,7 +309,7 @@ export function UploadReviewModal({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                              {reviewData.issues.map((issue: any) => (
+                              {reviewData.issues.map((issue: ReviewIssue) => (
                                 <tr key={issue.issue_id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
                                   <td className="px-4 py-2 font-mono text-zinc-400">{issue.row_number}</td>
                                   <td className="px-4 py-2 font-mono text-zinc-600 dark:text-zinc-300">{issue.field_name || '—'}</td>
