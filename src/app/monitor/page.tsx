@@ -104,7 +104,7 @@ export default async function MonitorDashboardPage() {
             {/* Leaderboard preview */}
             {snapshot ? (
               <div>
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                   <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
                     Leaderboard — v{snapshot.version}
                     <span className={`ml-3 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
@@ -114,6 +114,13 @@ export default async function MonitorDashboardPage() {
                       {snapshot.status}
                     </span>
                   </h2>
+
+                  <a
+                    href={`/api/competitions/${competition.competition_id}/export?snapshotId=${snapshot.snapshot_id}`}
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors shadow-xs"
+                  >
+                    ↓ Download Official CSV
+                  </a>
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
                   <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-left text-sm">
