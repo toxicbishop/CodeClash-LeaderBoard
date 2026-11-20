@@ -1,36 +1,13 @@
 import EmptyStateIcon from '@/components/EmptyStateIcon';
-import { redirect } from 'next/navigation';
-import { connection } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
 import { NewLabAdminForm } from './NewLabAdminForm';
 import type { Competition, Lab, User } from '@/types/database';
+import { requireCompetitionAdmin } from '@/lib/auth/guards';
 
 export const instant = false;
 
 export default async function AdminUsersPage() {
-  await connection();
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/');
-  }
-
-  // Fetch current admin profile
-  const { data: currentProfile } = await supabase
-    .from('users')
-    .select('name, role')
-    .eq('user_id', user.id)
-    .eq('account_status', 'ACTIVE')
-    .single();
-
-  if (currentProfile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/');
-  }
+  const { profile, supabase } = await requireCompetitionAdmin();
 
   // Fetch all Lab Admins
   const { data: labAdmins } = await supabase
@@ -60,7 +37,7 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <AdminNav currentPath="/admin/users" adminName={currentProfile.name} />
+      <AdminNav currentPath="/admin/users" adminName={profile.name} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
