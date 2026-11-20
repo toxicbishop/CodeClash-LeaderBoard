@@ -130,7 +130,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
               </div>
 
               <Link
-                href={`/competitions/${competition.slug}/leaderboard`}
+                href={`/leaderboard?comp=${competition.slug}`}
                 target="_blank"
                 className="mt-2 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 transition-colors"
               >

@@ -526,6 +526,7 @@ export async function consolidateLeaderboard(
   revalidatePath(`/admin/competitions/${competition_id}`);
   revalidatePath('/admin/competitions');
   revalidatePath('/admin');
+  revalidatePath('/leaderboard');
   revalidatePath(`/competitions/${comp.slug}/leaderboard`);
   return { success: true, data: { count: entriesToInsert.length } };
 }
@@ -609,6 +610,7 @@ export async function publishLeaderboard(
   revalidatePath(`/admin/competitions/${competition_id}`);
   revalidatePath('/admin/competitions');
   revalidatePath('/admin');
+  revalidatePath('/leaderboard');
   revalidatePath(`/competitions/${comp.slug}/leaderboard`);
   return { success: true, data: { version: draftSnapshot.version } };
 }

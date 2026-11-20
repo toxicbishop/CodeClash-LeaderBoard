@@ -159,7 +159,7 @@ export function CompetitionLifecycleBar({
 
             <div className="flex items-center space-x-2 shrink-0">
               <Link
-                href={`/competitions/${slug}/leaderboard`}
+                href={`/leaderboard?comp=${slug}`}
                 target="_blank"
                 className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               >
@@ -201,7 +201,7 @@ export function CompetitionLifecycleBar({
                 {isPending ? 'Re-consolidating...' : 'Re-consolidate'}
               </button>
               <Link
-                href={`/competitions/${slug}/leaderboard`}
+                href={`/leaderboard?comp=${slug}`}
                 target="_blank"
                 className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
               >
