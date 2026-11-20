@@ -6,11 +6,32 @@ for (const file of ['.env.local', '.env']) {
   if (existsSync(file)) loadEnvFile(file);
 }
 
-function required(name: string): string {
+function required(name: string) {
   const value = process.env[name];
-  if (!value?.trim()) throw new Error(`Missing required environment variable: ${name}. Set it in .env.local.`);
-  return value.trim();
+  if (!value?.trim()) throw new Error(`Set ${name} in .env.local.`);
+  return value;
 }
+
+const ACCOUNTS = [
+  {
+    email: 'masterlab@codeclash.com',
+    password: 'password123',
+    name: 'Lead Master Lab Admin',
+    role: 'MASTER_LAB_ADMIN',
+  },
+  {
+    email: 'hod@institution.edu',
+    password: 'password123',
+    name: 'Dr. Ramesh Sharma (HOD CSE)',
+    role: 'HOD',
+  },
+  {
+    email: 'principal@institution.edu',
+    password: 'password123',
+    name: 'Dr. Sunita Patel (Principal)',
+    role: 'PRINCIPAL',
+  },
+];
 
 async function main() {
   const supabase = createClient(
@@ -19,30 +40,9 @@ async function main() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const accounts = [
-    {
-      email: required('MASTER_LAB_ADMIN_EMAIL').toLowerCase(),
-      password: required('MASTER_LAB_ADMIN_PASSWORD'),
-      name: 'Lead Master Lab Admin',
-      role: 'MASTER_LAB_ADMIN',
-    },
-    {
-      email: required('HOD_EMAIL').toLowerCase(),
-      password: required('HOD_PASSWORD'),
-      name: 'Dr. Ramesh Sharma (HOD CSE)',
-      role: 'HOD',
-    },
-    {
-      email: required('PRINCIPAL_EMAIL').toLowerCase(),
-      password: required('PRINCIPAL_PASSWORD'),
-      name: 'Dr. Sunita Patel (Principal)',
-      role: 'PRINCIPAL',
-    },
-  ];
+  console.log('\n🌱 Seeding v2 accounts (Master Lab Admin, HOD, Principal)...');
 
-  console.log('\n🌱 Seeding accounts from .env.local (Master Lab Admin, HOD, Principal)...');
-
-  for (const acc of accounts) {
+  for (const acc of ACCOUNTS) {
     const { data: list } = await supabase.auth.admin.listUsers();
     let userId = list?.users.find((u) => u.email?.toLowerCase() === acc.email)?.id;
 
@@ -69,10 +69,10 @@ async function main() {
       account_status: 'ACTIVE',
     });
 
-    console.log(`✓ ${acc.role}: ${acc.email} (configured via .env.local)`);
+    console.log(`✓ ${acc.role}: ${acc.email} / ${acc.password}`);
   }
 
-  console.log('\n✅ Institutional & Master accounts synchronized from environment.\n');
+  console.log('\n✅ Institutional & Master accounts ready.\n');
 }
 
 main().catch(console.error);
