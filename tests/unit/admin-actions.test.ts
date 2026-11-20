@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createCompetition, createLab, createLabAdmin } from '@/app/admin/actions';
+import {
+  createCompetition,
+  createLab,
+  createLabAdmin,
+  approveUpload,
+  rejectUpload,
+  consolidateLeaderboard,
+  publishLeaderboard,
+} from '@/app/admin/actions';
 
 const { sessionClient, serviceClient } = vi.hoisted(() => ({
   sessionClient: vi.fn(),
@@ -28,7 +36,15 @@ describe.each([
   ['LAB_ADMIN', 'ACTIVE'],
   ['COMPETITION_ADMIN', 'INACTIVE'],
 ])('%s with status %s', (role, status) => {
-  it.each([createCompetition, createLab, createLabAdmin])('denies %s before any mutation', async (action) => {
+  it.each([
+    createCompetition,
+    createLab,
+    createLabAdmin,
+    approveUpload,
+    rejectUpload,
+    consolidateLeaderboard,
+    publishLeaderboard,
+  ])('denies %s before any mutation', async (action) => {
     const { from, filter } = mockSession(role, status);
     const result = await action({}, new FormData());
     expect(result.error).toBe('An active competition administrator account is required.');
