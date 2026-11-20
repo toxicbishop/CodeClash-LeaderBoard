@@ -1,8 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
-import type { CompetitionStatus, CompetitionVisibility } from '@/types/database';
+import { redirect } from 'next/navigation';
+import { createAdminClient } from '@/lib/supabase/server';
+import { requireSuperAdmin } from '@/lib/auth/guards';
+import { computeRankings } from '@/lib/ranking/engine';
+import type { TieBreakerRule } from '@/types/database';
 
 export type ActionResponse = {
   success?: boolean;
@@ -10,647 +13,390 @@ export type ActionResponse = {
   data?: unknown;
 };
 
-const permissionError = { error: 'An active competition administrator account is required.' };
+// ---------------------------------------------------------------------------
+// Competition management
+// ---------------------------------------------------------------------------
 
-async function getCompetitionAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export async function createCompetition(formData: FormData): Promise<void> {
+  const { supabase, user } = await requireSuperAdmin();
 
-  const { data: profile } = await supabase.from('users')
-    .select('role, account_status')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const name = formData.get('competition_name') as string;
+  const description = formData.get('description') as string | null;
+  const contestDate = formData.get('contest_date') as string;
+  const topK = parseInt(formData.get('top_k') as string, 10);
 
-  if (profile?.role !== 'COMPETITION_ADMIN' || profile.account_status !== 'ACTIVE') return null;
-  return { supabase, user };
-}
-
-/**
- * 1. Create a new Competition
- */
-export async function createCompetition(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return permissionError;
-  const { supabase, user } = admin;
-
-  const competition_name = (formData.get('competition_name') as string)?.trim();
-  const slug = (formData.get('slug') as string)?.trim().toLowerCase();
-  const description = (formData.get('description') as string)?.trim() || null;
-  const contest_date = formData.get('contest_date') as string;
-  const upload_deadline = formData.get('upload_deadline') as string;
-  const top_k_raw = formData.get('top_k') as string;
-  const boundary_policy = (formData.get('boundary_policy') as string) || 'ADMIT_ALL';
-  const visibility = (formData.get('visibility') as CompetitionVisibility) || 'PUBLIC';
-
-  if (!competition_name || !slug || !contest_date || !upload_deadline) {
-    return { error: 'Please provide all required fields (Name, Slug, Date, Deadline).' };
+  if (!name?.trim() || !contestDate || isNaN(topK) || topK < 1) {
+    throw new Error('Competition name, contest date, and a positive Top-K value are required.');
   }
 
-  const top_k = parseInt(top_k_raw || '10', 10);
-  if (isNaN(top_k) || top_k <= 0) {
-    return { error: 'Top-K must be a positive integer.' };
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const { data, error } = await supabase.from('competitions').insert({
+    slug,
+    competition_name: name.trim(),
+    description: description?.trim() || null,
+    contest_date: contestDate,
+    top_k: topK,
+    created_by: user.id,
+  }).select('competition_id').single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Failed to create competition');
   }
 
-  const scoring_config = {
-    tiebreakers: ['problems_solved_desc', 'penalty_asc', 'final_submission_time_asc'],
-    boundary_policy: boundary_policy as 'ADMIT_ALL' | 'STRICT_CUTOFF',
-  };
+  // Seed default tie-breaker rules
+  const adminClient = await createAdminClient();
+  await adminClient.rpc('seed_default_tiebreakers', { p_competition_id: data.competition_id });
 
-  const { data, error } = await supabase
-    .from('competitions')
-    .insert({
-      competition_name,
-      slug,
-      description,
-      contest_date,
-      upload_deadline: new Date(upload_deadline).toISOString(),
-      top_k,
-      scoring_config,
-      status: 'AWAITING_UPLOAD' as CompetitionStatus,
-      visibility,
-      created_by: user.id,
-    })
-    .select('competition_id')
-    .single();
+  // Audit log
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'COMPETITION_CREATED',
+    entity_type: 'competition',
+    entity_id: data.competition_id,
+    details: { competition_name: name.trim(), slug },
+  });
 
-  if (error) {
-    if (error.code === '23505') {
-      return { error: `The URL slug "${slug}" is already in use. Please choose a unique slug.` };
-    }
-    return { error: error.message };
-  }
-
-  revalidatePath('/admin');
   revalidatePath('/admin/competitions');
-  return { success: true, data };
+  redirect(`/admin/competitions/${data.competition_id}`);
 }
 
-/**
- * 2. Provision a new Lab Administrator account
- * Uses createAdminClient (service role) to bypass email verification
- */
-export async function createLabAdmin(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  if (!(await getCompetitionAdmin())) return permissionError;
+// ---------------------------------------------------------------------------
+// Contest set management
+// ---------------------------------------------------------------------------
 
-  const name = (formData.get('name') as string)?.trim();
-  const email = (formData.get('email') as string)?.trim().toLowerCase();
-  const password = formData.get('password') as string;
+export async function createContestSet(formData: FormData): Promise<void> {
+  const { supabase, user } = await requireSuperAdmin();
 
-  if (!name || !email || !password) {
-    return { error: 'Name, email, and password are required.' };
+  const competitionId = formData.get('competition_id') as string;
+  const setName = formData.get('set_name') as string;
+  const setCode = formData.get('set_code') as string;
+  const hackerrankSlug = formData.get('hackerrank_slug') as string;
+
+  if (!competitionId || !setName?.trim() || !setCode?.trim() || !hackerrankSlug?.trim()) {
+    throw new Error('Competition ID, set name, set code, and HackerRank slug are all required.');
   }
 
-  if (password.length < 8) {
-    return { error: 'Password must be at least 8 characters long.' };
-  }
-
-  const adminClient = createAdminClient();
-
-  // Create user in Supabase Auth directly with confirmed email
-  const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      name,
-      role: 'LAB_ADMIN',
-    },
+  const { error } = await supabase.from('contest_sets').insert({
+    competition_id: competitionId,
+    set_name: setName.trim(),
+    set_code: setCode.trim().toLowerCase(),
+    hackerrank_slug: hackerrankSlug.trim(),
   });
 
-  if (authError || !authData.user) {
-    return { error: authError?.message || 'Failed to create user in Auth.' };
-  }
+  if (error) throw new Error(error.message);
 
-  // Insert profile into public.users
-  const { error: profileError } = await adminClient.from('users').insert({
-    user_id: authData.user.id,
-    name,
-    email,
-    role: 'LAB_ADMIN',
-    account_status: 'ACTIVE',
+  const adminClient = await createAdminClient();
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'CONTEST_SET_CREATED',
+    entity_type: 'contest_set',
+    details: { set_name: setName, hackerrank_slug: hackerrankSlug },
   });
 
-  if (profileError) {
-    // Cleanup auth user if profile insert fails
-    await adminClient.auth.admin.deleteUser(authData.user.id);
-    return { error: profileError.message };
-  }
-
-  revalidatePath('/admin/users');
-  return { success: true, data: { user_id: authData.user.id, email, name } };
+  revalidatePath(`/admin/competitions/${competitionId}`);
+  redirect(`/admin/competitions/${competitionId}`);
 }
 
-/**
- * 3. Add a Lab to a Competition and assign a Lab Administrator
- */
-export async function createLab(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return permissionError;
-  const { supabase } = admin;
+// ---------------------------------------------------------------------------
+// Upload approval / rejection
+// ---------------------------------------------------------------------------
 
-  const competition_id = formData.get('competition_id') as string;
-  const lab_name = (formData.get('lab_name') as string)?.trim();
-  const assigned_admin_id = formData.get('assigned_admin_id') as string;
+export async function approveUpload(uploadId: string): Promise<ActionResponse> {
+  const { supabase, user } = await requireSuperAdmin();
 
-  if (!competition_id || !lab_name || !assigned_admin_id) {
-    return { error: 'Please select a competition, lab name, and assigned administrator.' };
-  }
-
-  const { data, error } = await supabase
-    .from('labs')
-    .insert({
-      competition_id,
-      lab_name,
-      assigned_admin_id,
-      status: 'ACTIVE',
-    })
-    .select('lab_id')
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      if (error.message.includes('uq_lab_name_per_competition')) {
-        return { error: `A lab named "${lab_name}" already exists in this competition.` };
-      }
-      if (error.message.includes('uq_admin_per_competition')) {
-        return { error: 'This Lab Administrator is already assigned to another lab in this competition.' };
-      }
-    }
-    return { error: error.message };
-  }
-
-  revalidatePath(`/admin/competitions/${competition_id}`);
-  revalidatePath('/admin');
-  return { success: true, data };
-}
-
-/**
- * 4. Approve a lab upload submission
- */
-export async function approveUpload(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return permissionError;
-  const { user } = admin;
-
-  const upload_id = formData.get('upload_id') as string;
-  const competition_id = formData.get('competition_id') as string;
-
-  if (!upload_id) {
-    return { error: 'Upload ID is required.' };
-  }
-
-  const adminClient = createAdminClient();
-
-  const { error } = await adminClient
+  const { data: upload, error } = await supabase
     .from('uploads')
     .update({
       status: 'APPROVED',
       approved_by: user.id,
       approved_at: new Date().toISOString(),
-      rejection_reason: null,
     })
-    .eq('upload_id', upload_id);
+    .eq('upload_id', uploadId)
+    .select('competition_id')
+    .single();
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
 
-  await adminClient.from('audit_log').insert({
-    actor_id: user.id,
+  const adminClient = await createAdminClient();
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
     action: 'UPLOAD_APPROVED',
     entity_type: 'upload',
-    entity_id: upload_id,
-    metadata: { competition_id },
+    entity_id: uploadId,
   });
 
-  if (competition_id) {
-    revalidatePath(`/admin/competitions/${competition_id}`);
+  if (upload?.competition_id) {
+    // Check if all sets are now approved
+    const { data: sets } = await adminClient
+      .from('contest_sets')
+      .select('set_id, uploads(status)')
+      .eq('competition_id', upload.competition_id);
+
+    const allApproved = (sets ?? []).every((s) => {
+      const uList = (s.uploads as Array<{ status: string }>) || [];
+      return uList.some((u) => u.status === 'APPROVED');
+    });
+
+    if (allApproved) {
+      await adminClient
+        .from('competitions')
+        .update({ status: 'APPROVED' })
+        .eq('competition_id', upload.competition_id)
+        .neq('status', 'PUBLISHED');
+    }
   }
-  revalidatePath('/admin/competitions');
+
   revalidatePath('/admin');
   return { success: true };
 }
 
-/**
- * 5. Reject a lab upload submission with a mandatory reason
- */
-export async function rejectUpload(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return permissionError;
-  const { user } = admin;
+export async function rejectUpload(uploadId: string, reason: string): Promise<ActionResponse> {
+  const { supabase, user } = await requireSuperAdmin();
 
-  const upload_id = formData.get('upload_id') as string;
-  const competition_id = formData.get('competition_id') as string;
-  const rejection_reason = (formData.get('rejection_reason') as string)?.trim();
+  if (!reason?.trim()) return { error: 'A rejection reason is required.' };
 
-  if (!upload_id) {
-    return { error: 'Upload ID is required.' };
-  }
-  if (!rejection_reason) {
-    return { error: 'Please provide a reason for rejecting this submission.' };
-  }
-
-  const adminClient = createAdminClient();
-
-  const { error } = await adminClient
+  const { error } = await supabase
     .from('uploads')
     .update({
       status: 'REJECTED',
-      rejection_reason,
-      approved_by: null,
-      approved_at: null,
+      rejection_reason: reason.trim(),
     })
-    .eq('upload_id', upload_id);
+    .eq('upload_id', uploadId);
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
 
-  await adminClient.from('audit_log').insert({
-    actor_id: user.id,
+  const adminClient = await createAdminClient();
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
     action: 'UPLOAD_REJECTED',
     entity_type: 'upload',
-    entity_id: upload_id,
-    metadata: { competition_id, rejection_reason },
+    entity_id: uploadId,
+    details: { reason: reason.trim() },
   });
 
-  if (competition_id) {
-    revalidatePath(`/admin/competitions/${competition_id}`);
-  }
-  revalidatePath('/admin/competitions');
   revalidatePath('/admin');
   return { success: true };
 }
 
-/**
- * 6. Consolidate approved lab records and generate a DRAFT Leaderboard Snapshot
- */
-export async function consolidateLeaderboard(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return permissionError;
-  const { user } = admin;
+// ---------------------------------------------------------------------------
+// Leaderboard generation & publication (Phase 3 spec)
+// ---------------------------------------------------------------------------
 
-  const competition_id = formData.get('competition_id') as string;
-  if (!competition_id) {
-    return { error: 'Competition ID is required.' };
-  }
+export async function generateLeaderboard(competitionId: string): Promise<ActionResponse> {
+  const { supabase, user } = await requireSuperAdmin();
 
-  const adminClient = createAdminClient();
-
-  // Fetch competition details
-  const { data: comp, error: compErr } = await adminClient
+  // 1. Fetch competition and topK
+  const { data: competition, error: compError } = await supabase
     .from('competitions')
+    .select('competition_id, top_k')
+    .eq('competition_id', competitionId)
+    .single();
+
+  if (compError || !competition) return { error: 'Competition not found.' };
+
+  // 2. Fetch tie breaker rules
+  const { data: rules } = await supabase
+    .from('tie_breaker_rules')
     .select('*')
-    .eq('competition_id', competition_id)
-    .single();
+    .eq('competition_id', competitionId)
+    .order('priority', { ascending: true });
 
-  if (compErr || !comp) {
-    return { error: 'Competition not found.' };
+  const activeRules: TieBreakerRule[] = rules || [
+    { rule_id: '1', competition_id: competitionId, criterion: 'total_score', priority: 1, direction: 'DESC', enabled: true, approved_by: null },
+    { rule_id: '2', competition_id: competitionId, criterion: 'problems_solved', priority: 2, direction: 'DESC', enabled: true, approved_by: null },
+    { rule_id: '3', competition_id: competitionId, criterion: 'penalty', priority: 3, direction: 'ASC', enabled: true, approved_by: null },
+  ];
+
+  // 3. Fetch all approved participants & results across all sets
+  const { data: participants, error: partError } = await supabase
+    .from('participants')
+    .select('participant_id, external_id, participant_name, set_id, contest_sets(set_name), results(total_score, problems_solved, penalty, final_submission_time, incorrect_submissions), uploads!inner(status)')
+    .eq('competition_id', competitionId)
+    .eq('uploads.status', 'APPROVED');
+
+  if (partError || !participants || participants.length === 0) {
+    return { error: 'No approved submissions found to consolidate.' };
   }
 
-  // Fetch all active labs
-  const { data: labs, error: labsErr } = await adminClient
-    .from('labs')
-    .select('lab_id, lab_name')
-    .eq('competition_id', competition_id)
-    .eq('status', 'ACTIVE');
-
-  if (labsErr || !labs || labs.length === 0) {
-    return { error: 'No active labs found for this competition.' };
-  }
-
-  // Fetch approved uploads for each lab
-  const labIds = labs.map((l) => l.lab_id);
-  const { data: approvedUploads, error: uploadsErr } = await adminClient
-    .from('uploads')
-    .select('upload_id, lab_id, status')
-    .eq('competition_id', competition_id)
-    .in('lab_id', labIds)
-    .eq('status', 'APPROVED');
-
-  if (uploadsErr) return { error: uploadsErr.message };
-
-  const approvedLabIds = new Set(approvedUploads?.map((u) => u.lab_id) || []);
-  const unapprovedLabs = labs.filter((l) => !approvedLabIds.has(l.lab_id));
-
-  if (unapprovedLabs.length > 0) {
+  const flatInput = participants.map((p) => {
+    const r = (p.results as unknown as Array<{
+      total_score: number;
+      problems_solved: number | null;
+      penalty: number | null;
+      final_submission_time: number | null;
+      incorrect_submissions: number | null;
+    }>)?.[0];
+    const setName = (p.contest_sets as unknown as { set_name: string })?.set_name || 'Set';
     return {
-      error: `Cannot consolidate: ${unapprovedLabs.length} lab(s) [${unapprovedLabs
-        .map((l) => l.lab_name)
-        .join(', ')}] do not have an approved submission.`,
+      participant_id: p.participant_id,
+      external_id: p.external_id,
+      participant_name: p.participant_name,
+      set_id: p.set_id,
+      set_name: setName,
+      total_score: Number(r?.total_score ?? 0),
+      problems_solved: r?.problems_solved ?? null,
+      penalty: r?.penalty ?? null,
+      final_submission_time: r?.final_submission_time ?? null,
+      incorrect_submissions: r?.incorrect_submissions ?? null,
     };
-  }
-
-  const approvedUploadIds = (approvedUploads || []).map((u) => u.upload_id);
-
-  // Fetch all results from approved uploads
-  const { data: results, error: resultsErr } = await adminClient
-    .from('results')
-    .select('result_id, total_score, problems_solved, penalty, final_submission_time, lab_id, participant_id')
-    .in('upload_id', approvedUploadIds);
-
-  if (resultsErr) return { error: resultsErr.message };
-  if (!results || results.length === 0) {
-    return { error: 'No participant records found in approved uploads.' };
-  }
-
-  // Tie-breaking & ranking logic
-  // 1. total_score descending
-  // 2. problems_solved descending
-  // 3. penalty ascending (nulls last)
-  // 4. final_submission_time ascending (nulls last)
-  const sorted = [...results].sort((a, b) => {
-    if (b.total_score !== a.total_score) {
-      return Number(b.total_score) - Number(a.total_score);
-    }
-    if (b.problems_solved !== a.problems_solved) {
-      return b.problems_solved - a.problems_solved;
-    }
-    const penA = a.penalty !== null ? Number(a.penalty) : Infinity;
-    const penB = b.penalty !== null ? Number(b.penalty) : Infinity;
-    if (penA !== penB) {
-      return penA - penB;
-    }
-    if (a.final_submission_time && b.final_submission_time) {
-      return new Date(a.final_submission_time).getTime() - new Date(b.final_submission_time).getTime();
-    }
-    return 0;
   });
 
-  // Calculate shared ranks
-  const topK = comp.top_k || 10;
-  const boundaryPolicy = comp.scoring_config?.boundary_policy || 'ADMIT_ALL';
+  // 4. Run ranking engine
+  const ranked = computeRankings(flatInput, activeRules, competition.top_k);
 
-  type RankedItem = (typeof sorted)[number] & {
-    rank: number;
-    is_qualified: boolean;
-  };
+  // 5. Store snapshot in DB
+  const adminClient = await createAdminClient();
 
-  const ranked: RankedItem[] = [];
-  for (let i = 0; i < sorted.length; i++) {
-    const current = sorted[i];
-    let rank = i + 1;
-
-    if (i > 0) {
-      const prev = sorted[i - 1];
-      const sameScore = Number(current.total_score) === Number(prev.total_score);
-      const sameSolved = current.problems_solved === prev.problems_solved;
-      const samePenalty = current.penalty === prev.penalty;
-      if (sameScore && sameSolved && samePenalty) {
-        rank = ranked[i - 1].rank;
-      }
-    }
-
-    let is_qualified = false;
-    if (boundaryPolicy === 'ADMIT_ALL') {
-      is_qualified = rank <= topK;
-    } else {
-      is_qualified = i < topK;
-    }
-
-    ranked.push({
-      ...current,
-      rank,
-      is_qualified,
-    });
-  }
-
-  // Manage leaderboard snapshot
-  // If an existing DRAFT snapshot exists, clean out its entries
-  const { data: existingDraft } = await adminClient
+  const { data: lastSnap } = await adminClient
     .from('leaderboard_snapshots')
-    .select('leaderboard_id, version')
-    .eq('competition_id', competition_id)
-    .eq('status', 'DRAFT')
-    .maybeSingle();
-
-  let targetSnapshotId = existingDraft?.leaderboard_id;
-
-  if (targetSnapshotId) {
-    // Delete old entries
-    await adminClient
-      .from('leaderboard_entries')
-      .delete()
-      .eq('leaderboard_id', targetSnapshotId);
-
-    // Update snapshot generated_at
-    await adminClient
-      .from('leaderboard_snapshots')
-      .update({ generated_at: new Date().toISOString() })
-      .eq('leaderboard_id', targetSnapshotId);
-  } else {
-    // Determine new version
-    const { data: allSnapshots } = await adminClient
-      .from('leaderboard_snapshots')
-      .select('version')
-      .eq('competition_id', competition_id);
-
-    const maxVersion = allSnapshots && allSnapshots.length > 0
-      ? Math.max(...allSnapshots.map((s) => s.version))
-      : 0;
-
-    const { data: newSnapshot, error: snapErr } = await adminClient
-      .from('leaderboard_snapshots')
-      .insert({
-        competition_id,
-        version: maxVersion + 1,
-        status: 'DRAFT',
-        generated_at: new Date().toISOString(),
-      })
-      .select('leaderboard_id')
-      .single();
-
-    if (snapErr || !newSnapshot) {
-      return { error: snapErr?.message || 'Failed to create leaderboard snapshot.' };
-    }
-    targetSnapshotId = newSnapshot.leaderboard_id;
-  }
-
-  // Insert all leaderboard entries
-  const entriesToInsert = ranked.map((r) => ({
-    leaderboard_id: targetSnapshotId!,
-    participant_id: r.participant_id,
-    lab_id: r.lab_id,
-    overall_rank: r.rank,
-    total_score: r.total_score,
-    problems_solved: r.problems_solved,
-    penalty: r.penalty,
-    is_qualified: r.is_qualified,
-  }));
-
-  const { error: entriesErr } = await adminClient
-    .from('leaderboard_entries')
-    .insert(entriesToInsert);
-
-  if (entriesErr) {
-    return { error: entriesErr.message };
-  }
-
-  // Transition competition status to READY_FOR_REVIEW
-  await adminClient
-    .from('competitions')
-    .update({ status: 'READY_FOR_REVIEW' })
-    .eq('competition_id', competition_id);
-
-  await adminClient.from('audit_log').insert({
-    actor_id: user.id,
-    action: 'LEADERBOARD_CONSOLIDATED',
-    entity_type: 'leaderboard_snapshot',
-    entity_id: targetSnapshotId!,
-    metadata: {
-      competition_id,
-      total_entries: entriesToInsert.length,
-      top_k: topK,
-    },
-  });
-
-  revalidatePath(`/admin/competitions/${competition_id}`);
-  revalidatePath('/admin/competitions');
-  revalidatePath('/admin');
-  revalidatePath('/leaderboard');
-  revalidatePath(`/competitions/${comp.slug}/leaderboard`);
-  return { success: true, data: { count: entriesToInsert.length } };
-}
-
-/**
- * 7. Publish the official leaderboard snapshot
- */
-export async function publishLeaderboard(
-  prevState: ActionResponse,
-  formData: FormData
-): Promise<ActionResponse> {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return permissionError;
-  const { user } = admin;
-
-  const competition_id = formData.get('competition_id') as string;
-  if (!competition_id) {
-    return { error: 'Competition ID is required.' };
-  }
-
-  const adminClient = createAdminClient();
-
-  const { data: comp } = await adminClient
-    .from('competitions')
-    .select('slug, competition_name')
-    .eq('competition_id', competition_id)
-    .single();
-
-  if (!comp) return { error: 'Competition not found.' };
-
-  // Find latest DRAFT snapshot
-  const { data: draftSnapshot, error: draftErr } = await adminClient
-    .from('leaderboard_snapshots')
-    .select('leaderboard_id, version')
-    .eq('competition_id', competition_id)
-    .eq('status', 'DRAFT')
+    .select('version')
+    .eq('competition_id', competitionId)
     .order('version', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (draftErr || !draftSnapshot) {
-    return { error: 'No draft leaderboard snapshot found. Consolidate results first.' };
-  }
+  const newVersion = (lastSnap?.version ?? 0) + 1;
 
-  // Supersede any previously published snapshot
+  const { data: snapshot, error: snapError } = await adminClient
+    .from('leaderboard_snapshots')
+    .insert({
+      competition_id: competitionId,
+      version: newVersion,
+      generated_by: user.id,
+      status: 'DRAFT',
+    })
+    .select('snapshot_id')
+    .single();
+
+  if (snapError || !snapshot) return { error: `Failed to create snapshot: ${snapError?.message}` };
+
+  const entries = ranked.map((entry) => ({
+    snapshot_id: snapshot.snapshot_id,
+    participant_id: entry.participant_id,
+    set_id: entry.set_id,
+    overall_rank: entry.overall_rank,
+    total_score: entry.total_score,
+    problems_solved: entry.problems_solved,
+    penalty: entry.penalty,
+    qualification_status: entry.qualification_status,
+  }));
+
+  const { error: entryError } = await adminClient.from('leaderboard_entries').insert(entries);
+  if (entryError) return { error: `Failed to insert entries: ${entryError.message}` };
+
+  // Audit log
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'LEADERBOARD_GENERATED',
+    entity_type: 'leaderboard_snapshot',
+    entity_id: snapshot.snapshot_id,
+    details: { competition_id: competitionId, version: newVersion, total_entries: entries.length },
+  });
+
+  revalidatePath(`/admin/competitions/${competitionId}`);
+  revalidatePath('/monitor');
+  return { success: true, data: { snapshot_id: snapshot.snapshot_id, version: newVersion } };
+}
+
+export async function publishLeaderboard(snapshotId: string): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+  const adminClient = await createAdminClient();
+
+  const { data: snapshot, error: fetchError } = await adminClient
+    .from('leaderboard_snapshots')
+    .select('competition_id, version')
+    .eq('snapshot_id', snapshotId)
+    .single();
+
+  if (fetchError || !snapshot) return { error: 'Snapshot not found.' };
+
+  // Mark all previous snapshots of this competition as SUPERSEDED
   await adminClient
     .from('leaderboard_snapshots')
     .update({ status: 'SUPERSEDED' })
-    .eq('competition_id', competition_id)
-    .eq('status', 'PUBLISHED');
+    .eq('competition_id', snapshot.competition_id)
+    .neq('snapshot_id', snapshotId);
 
   // Mark this snapshot as PUBLISHED
-  const { error: pubErr } = await adminClient
+  const now = new Date().toISOString();
+  const { error: pubError } = await adminClient
     .from('leaderboard_snapshots')
     .update({
       status: 'PUBLISHED',
-      published_at: new Date().toISOString(),
       published_by: user.id,
+      published_at: now,
     })
-    .eq('leaderboard_id', draftSnapshot.leaderboard_id);
+    .eq('snapshot_id', snapshotId);
 
-  if (pubErr) return { error: pubErr.message };
+  if (pubError) return { error: pubError.message };
 
-  // Set competition status to PUBLISHED
+  // Update competition status to PUBLISHED
   await adminClient
     .from('competitions')
     .update({ status: 'PUBLISHED' })
-    .eq('competition_id', competition_id);
+    .eq('competition_id', snapshot.competition_id);
 
-  await adminClient.from('audit_log').insert({
-    actor_id: user.id,
+  // Audit log
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
     action: 'LEADERBOARD_PUBLISHED',
     entity_type: 'leaderboard_snapshot',
-    entity_id: draftSnapshot.leaderboard_id,
-    metadata: {
-      competition_id,
-      version: draftSnapshot.version,
-    },
+    entity_id: snapshotId,
+    details: { competition_id: snapshot.competition_id, version: snapshot.version },
   });
 
-  revalidatePath(`/admin/competitions/${competition_id}`);
-  revalidatePath('/admin/competitions');
-  revalidatePath('/admin');
-  revalidatePath('/leaderboard');
-  revalidatePath(`/competitions/${comp.slug}/leaderboard`);
-  return { success: true, data: { version: draftSnapshot.version } };
+  revalidatePath(`/admin/competitions/${snapshot.competition_id}`);
+  revalidatePath('/monitor');
+  return { success: true };
 }
 
-/**
- * 8. Fetch upload review details (upload metadata, sample records, validation issues)
- */
-export async function getUploadReviewData(uploadId: string) {
-  const admin = await getCompetitionAdmin();
-  if (!admin) return { error: 'An active competition administrator account is required.' };
+// ---------------------------------------------------------------------------
+// User management (Super Admin provisions accounts)
+// ---------------------------------------------------------------------------
 
-  const adminClient = createAdminClient();
+export async function provisionUser(formData: FormData): Promise<void> {
+  const { user: callerUser } = await requireSuperAdmin();
 
-  const { data: upload, error: uploadErr } = await adminClient
-    .from('uploads')
-    .select('*, labs(lab_id, lab_name), users!uploads_uploaded_by_fkey(name, email)')
-    .eq('upload_id', uploadId)
-    .single();
+  const name = formData.get('name') as string;
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+  const role = formData.get('role') as string;
 
-  if (uploadErr || !upload) return { error: 'Upload submission not found.' };
+  const validRoles = ['MASTER_LAB_ADMIN', 'HOD', 'PRINCIPAL'];
+  if (!name?.trim() || !email?.trim() || !password || !validRoles.includes(role)) {
+    throw new Error('Name, email, password, and a valid role are required.');
+  }
 
-  const { data: results } = await adminClient
-    .from('results')
-    .select('result_id, total_score, problems_solved, penalty, participants(participant_id, external_participant_id, participant_name)')
-    .eq('upload_id', uploadId)
-    .order('total_score', { ascending: false })
-    .limit(50);
+  const adminClient = await createAdminClient();
+  const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
+    email: email.trim(),
+    password,
+    email_confirm: true,
+  });
 
-  const { data: issues } = await adminClient
-    .from('validation_issues')
-    .select('*')
-    .eq('upload_id', uploadId)
-    .order('row_number', { ascending: true });
+  if (authError || !authUser.user) throw new Error(authError?.message || 'Failed to create user');
 
-  return {
-    success: true,
-    data: {
-      upload,
-      results: results || [],
-      issues: issues || [],
-    },
-  };
+  const { error: profileError } = await adminClient.from('users').insert({
+    user_id: authUser.user.id,
+    name: name.trim(),
+    email: email.trim(),
+    role,
+  });
+
+  if (profileError) {
+    await adminClient.auth.admin.deleteUser(authUser.user.id);
+    throw new Error(profileError.message);
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: callerUser.id,
+    action: 'USER_PROVISIONED',
+    entity_type: 'user',
+    entity_id: authUser.user.id,
+    details: { name: name.trim(), email: email.trim(), role },
+  });
+
+  revalidatePath('/admin/users');
+  redirect('/admin/users');
 }
