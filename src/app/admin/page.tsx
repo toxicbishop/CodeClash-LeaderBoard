@@ -1,34 +1,12 @@
 import Link from 'next/link';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
-import { redirect } from 'next/navigation';
-import { connection } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { AdminNav } from '@/components/AdminNav';
+import { requireCompetitionAdmin } from '@/lib/auth/guards';
 
 export const instant = false;
 
 export default async function AdminDashboardPage() {
-  await connection();
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/');
-  }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('account_status', 'ACTIVE')
-    .single();
-
-  if (profile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/');
-  }
+  const { profile, supabase } = await requireCompetitionAdmin();
 
   // Fetch summary counts
   const [{ count: competitionsCount }, { count: labsCount }, { count: adminsCount }] =

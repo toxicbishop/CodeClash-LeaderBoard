@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "admin:sync": "node scripts/seed-admin.ts",
+    "admin:sync": "node --no-warnings --experimental-strip-types scripts/seed-admin.ts",
+    "seed:review-demo": "node --no-warnings --experimental-strip-types scripts/seed-review-demo.ts",
+    "predev": "node --no-warnings --experimental-strip-types scripts/dev-doctor.ts",
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "test:permissions": "vitest run",
     "test:signin": "playwright test tests/signin.spec.ts",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "check": "pnpm typecheck && pnpm test:permissions && supabase test db"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
