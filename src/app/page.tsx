@@ -60,7 +60,7 @@ export default async function HomePage() {
             <div className="flex items-center space-x-3 sm:space-x-4">
               {featured && (
                 <Link
-                  href={`/competitions/${featured.slug}/leaderboard`}
+                  href="/leaderboard"
                   className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
                   Live Leaderboard
@@ -110,7 +110,7 @@ export default async function HomePage() {
             <div className="mt-8 flex flex-wrap items-center gap-4">
               {featured ? (
                 <Link
-                  href={`/competitions/${featured.slug}/leaderboard`}
+                  href="/leaderboard"
                   className="px-6 py-3 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]"
                 >
                   View Live Leaderboard ({featured.competition_name}) →
@@ -163,7 +163,7 @@ export default async function HomePage() {
                   {featured.status.replaceAll('_', ' ')}
                 </span>
                 <Link
-                  href={`/competitions/${featured.slug}/leaderboard`}
+                  href="/leaderboard"
                   className="px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
                 >
                   Launch Leaderboard ↗
