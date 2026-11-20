@@ -173,7 +173,17 @@ export default async function AdminDashboardPage() {
                         {new Date(comp.contest_date).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
+                            comp.status === 'READY_FOR_REVIEW'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                              : comp.status === 'PUBLISHED'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                              : comp.status === 'PROCESSING'
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                              : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20'
+                          }`}
+                        >
                           {comp.status.replace('_', ' ')}
                         </span>
                       </td>
