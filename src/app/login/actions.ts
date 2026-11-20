@@ -29,15 +29,26 @@ export async function login(prevState: ActionState, formData: FormData): Promise
   }
 
   // 2. Fetch application profile to verify role and account status
-  const { data: profile, error: profileError } = await supabase
-    .from('users')
-    .select('role, account_status')
-    .eq('user_id', authData.user.id)
-    .single();
+  let profile: { role: string; account_status: string } | null = null;
+  try {
+    const { data, error: profileError } = await supabase
+      .from('users')
+      .select('role, account_status')
+      .eq('user_id', authData.user.id)
+      .single();
 
-  if (profileError || !profile) {
+    if (profileError || !data) {
+      await supabase.auth.signOut();
+      return { error: 'User profile not found. Please contact the administrator.' };
+    }
+    profile = data;
+  } catch (error) {
     await supabase.auth.signOut();
-    return { error: 'User profile not found. Please contact the administrator.' };
+    const message = error instanceof Error ? error.message : '';
+    if (/fetch failed|ECONNREFUSED|ENOTFOUND|network/i.test(message)) {
+      return { error: 'Authentication service is unavailable. Start local Supabase/Docker and try again.' };
+    }
+    return { error: 'Unable to fetch user profile. Please try again.' };
   }
 
   if (profile.account_status !== 'ACTIVE') {
@@ -47,7 +58,7 @@ export async function login(prevState: ActionState, formData: FormData): Promise
 
   revalidatePath('/', 'layout');
 
-  // 3. Route according to user role
+  // 3. Route according to user role — redirect() throws internally; must be outside try/catch
   if (profile.role === 'COMPETITION_ADMIN') {
     redirect('/admin');
   } else if (profile.role === 'LAB_ADMIN') {

@@ -401,7 +401,10 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# Disabled: vector/logflare requires Docker TCP socket (tcp://localhost:2375)
+# which is not available in Docker Desktop on Windows without enabling it manually.
+# Enable this only if you expose the Docker daemon on tcp://localhost:2375.
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
