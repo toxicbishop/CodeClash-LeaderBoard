@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { generateLeaderboard, publishLeaderboard } from '@/app/admin/actions';
 
-interface Snapshot {
+export interface Snapshot {
   snapshot_id: string;
   version: number;
   status: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';

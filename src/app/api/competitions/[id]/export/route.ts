@@ -112,7 +112,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       'Qualification Status',
     ].join(',');
 
-    const rows = (entries || []).map((row: any) => {
+    interface ExportEntryRow {
+      overall_rank: number;
+      total_score: number;
+      problems_solved: number | null;
+      penalty: number | null;
+      qualification_status: string;
+      participants: { external_id: string; participant_name: string } | null;
+      contest_sets: { set_name: string; set_code: string } | null;
+    }
+
+    const rows = ((entries || []) as unknown as ExportEntryRow[]).map((row) => {
       return [
         row.overall_rank,
         sanitizeCsvValue(row.participants?.external_id),
@@ -138,8 +148,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         'Cache-Control': 'no-store',
       },
     });
-  } catch (err: any) {
-    if (err?.digest?.startsWith?.('NEXT_REDIRECT')) {
+  } catch (err: unknown) {
+    const errorObj = err as { digest?: string; message?: string } | undefined;
+    if (errorObj?.digest?.startsWith?.('NEXT_REDIRECT')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json(
