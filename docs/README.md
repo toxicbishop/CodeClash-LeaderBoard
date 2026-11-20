@@ -1,25 +1,31 @@
-# Code Clash Leaderboard documentation
+# Code Clash Leaderboard Documentation
 
-Updated baseline aligning with `Leaderboard_Developer_Doc.docx` (November 2026).
+Updated baseline aligning with `Revised_LeaderBoardManagement(CodeClash).docx` (Version 2.0, November 2026).
 
-This system is a **Multi-Lab Contest Leaderboard Management System**: a centralized result-collection, validation, consolidation, and ranking platform. It supports multi-lab coding competitions (including Code Clash 2026) where participants are distributed across multiple computer laboratories. Each lab independently uploads or syncs its contest results, and the application validates, consolidates, ranks, and publishes a single unified leaderboard (with configurable Top-K participants) for projectors, organizers, and public displays.
+This system is a **Coding Competition – Centralized Leaderboard Management System**: a secure, transparent result-collection, validation, consolidation, and ranking platform.
 
-## Documents
+In Version 2.0, the architecture has transitioned from a distributed multi-lab administrative model to a **centralized contest-set model**. Rather than having individual lab administrators upload partial files for each physical lab, a centralized **Master Lab Admin** uploads independent leaderboard files for each contest set (e.g., Set A, Set B, Set C, Set D). The system validates incoming files, identifies duplicate participants across sets, consolidates approved results, applies configurable lexicographical tie-breaking rules, and publishes an authoritative unified leaderboard (highlighting Top-K qualified participants).
+
+Additionally, Version 2.0 introduces dedicated, read-only monitoring dashboards for the **Principal** and **HOD** (Head of Department) to observe live competition progress, inspect set-wise rankings, verify tie-breaking transparency, and audit publication statuses without administrative edit permissions.
+
+---
+
+## Documentation Index
 
 | Document | Purpose |
-| --- | --- |
-| [Project scope](./project-scope.md) | System objectives, user roles, event parameters, and boundaries |
-| [Functional requirements](./functional-requirements.md) | The 9 core functional modules, state lifecycle, security, and edge cases |
-| [Tech stack](./tech-stack.md) | Architecture, Next.js implementation, routing, and REST API specification |
-| [Workflows](./workflows.md) | End-to-end 11-step workflow, lab uploads, approval gates, and publication |
-| [Data model](./data-model.md) | 7 relational database entities, column mapping, and data integrity rules |
-| [Decisions and delivery plan](./decisions-and-delivery.md) | Phased delivery plan, decisions register, and verification test matrix |
-| [Research references](./research-references.md) | Reference tools, scoring guidelines, and integration dependencies |
+| :--- | :--- |
+| [Project Scope](./project-scope.md) | System objectives, architectural evolution (v1.0 vs v2.0), user roles (Super Admin, Master Lab Admin, HOD, Principal, Public), event parameters, and scope boundaries |
+| [Functional Requirements](./functional-requirements.md) | The 10 core functional modules, finite state lifecycle, security rules, Principal/HOD monitoring, and edge-case handling |
+| [Data Model](./data-model.md) | Relational database schema (`contest_sets`, `uploads`, `results`, `tiebreaker_rules`, `leaderboard_snapshots`), column mappings, and integrity constraints |
+| [Workflows](./workflows.md) | End-to-end 11-step operational workflow, contest-set uploads, validation reports, approval gates, consolidation, and publication |
+| [Tech Stack and Architecture](./tech-stack.md) | Full-stack Next.js 16 + React 19 + TypeScript + Tailwind CSS + Prisma + PostgreSQL architecture, route tree, and REST API specification |
+| [Decisions and Delivery Plan](./decisions-and-delivery.md) | 5-phase delivery roadmap, formal architectural decisions register, and 18-point verification test matrix |
+| [Research References](./research-references.md) | Source specifications, reference implementations, scoring guidelines, and integration dependencies |
 
-## Status terminology
+---
 
-- **Confirmed:** Established by the project requirements and developer documentation.
-- **Configurable:** Parameterized in the system (e.g., Top-K value, number of labs, tie-breaking criteria).
-- **Open:** Subject to organizer confirmation prior to contest start (e.g., specific tie-break order).
+## Status Terminology
 
-Always keep these documents synchronized when new specifications or decisions are recorded.
+- **Confirmed:** Established by the revised specification (`Revised_LeaderBoardManagement(CodeClash).docx` v2.0).
+- **Configurable:** Parameterized in the system (e.g., Top-K threshold, number of contest sets, tie-breaking criteria priority and direction).
+- **Open / Review:** Subject to organizer confirmation prior to contest start (e.g., contest-set equivalence confirmation, duplicate identity policy).
