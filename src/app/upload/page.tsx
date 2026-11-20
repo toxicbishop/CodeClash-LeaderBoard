@@ -6,7 +6,7 @@ import Link from 'next/link';
 export const instant = false;
 
 export default async function UploadDashboardPage() {
-  const { user, profile, supabase } = await requireMasterLabAdmin();
+  const { profile, supabase } = await requireMasterLabAdmin();
 
   // Fetch the active competition (most recent)
   const { data: competition } = await supabase

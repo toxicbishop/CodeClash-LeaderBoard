@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { connection } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { LoginForm } from './login/LoginForm';
 import { FatFooter } from '@/components/FatFooter';
 
@@ -9,7 +12,29 @@ export const metadata = {
 
 export const instant = false;
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  await connection();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profile?.role === 'SUPER_ADMIN' || profile?.role === 'COMPETITION_ADMIN') {
+      redirect('/admin');
+    } else if (profile?.role === 'MASTER_LAB_ADMIN' || profile?.role === 'LAB_ADMIN') {
+      redirect('/upload');
+    } else if (profile?.role === 'HOD' || profile?.role === 'PRINCIPAL') {
+      redirect('/monitor');
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col justify-between bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-30">
