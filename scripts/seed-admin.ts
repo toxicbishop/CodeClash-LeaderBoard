@@ -19,8 +19,8 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const admin = supabase.auth.admin;
-  const name = 'Lead Competition Admin';
-  const role = 'COMPETITION_ADMIN';
+  const name = 'Lead Super Admin';
+  const role = 'SUPER_ADMIN';
 
   // Look up the Auth identity first so a retry after a failed profile insert is safe.
   let userId: string | undefined;

@@ -59,10 +59,12 @@ export async function login(prevState: ActionState, formData: FormData): Promise
   revalidatePath('/', 'layout');
 
   // 3. Route according to user role — redirect() throws internally; must be outside try/catch
-  if (profile.role === 'COMPETITION_ADMIN') {
+  if (profile.role === 'SUPER_ADMIN' || profile.role === 'COMPETITION_ADMIN') {
     redirect('/admin');
-  } else if (profile.role === 'LAB_ADMIN') {
-    redirect('/lab-admin');
+  } else if (profile.role === 'MASTER_LAB_ADMIN' || profile.role === 'LAB_ADMIN') {
+    redirect('/upload');
+  } else if (profile.role === 'HOD' || profile.role === 'PRINCIPAL') {
+    redirect('/monitor');
   } else {
     redirect('/');
   }
