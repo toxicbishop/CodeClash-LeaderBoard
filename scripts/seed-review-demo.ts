@@ -103,7 +103,6 @@ async function main() {
   }
 
   // 1. Get competition admin
-  const { data: { users: authUsers } } = await supabase.auth.admin.listUsers();
   const { data: adminProfile } = await supabase
     .from('users').select('user_id').eq('role', 'COMPETITION_ADMIN').limit(1).maybeSingle();
   if (!adminProfile) throw new Error('No Competition Admin found. Run pnpm admin:sync first.');

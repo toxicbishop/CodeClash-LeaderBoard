@@ -4,8 +4,11 @@ interface FatFooterProps {
   currentCompetitionSlug?: string;
 }
 
-export function FatFooter({ currentCompetitionSlug }: FatFooterProps) {
+export function FatFooter({ currentCompetitionSlug }: FatFooterProps = {}) {
   const currentYear = 2026;
+  const leaderboardHref = currentCompetitionSlug
+    ? `/leaderboard?comp=${currentCompetitionSlug}`
+    : '/leaderboard';
 
   return (
     <footer className="mt-24 border-t border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 text-xs">
@@ -37,7 +40,7 @@ export function FatFooter({ currentCompetitionSlug }: FatFooterProps) {
             <ul className="space-y-2">
               <li>
                 <Link
-                  href="/leaderboard"
+                  href={leaderboardHref}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                 >
                   Live Leaderboard
