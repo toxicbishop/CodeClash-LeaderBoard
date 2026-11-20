@@ -1,40 +1,30 @@
 /**
- * Shared auth guard utilities for server components and server actions.
+ * src/lib/auth/guards.ts  —  v2
  *
- * Before these guards existed, every page and action repeated ~30 lines of:
- *   await connection(); createClient(); getUser(); check role; check account_status; redirect()
- *
- * Now each route needs exactly one line.
+ * Four role guards for the revised architecture:
+ *   SUPER_ADMIN        → requireSuperAdmin()       — /admin/* pages
+ *   MASTER_LAB_ADMIN   → requireMasterLabAdmin()   — /upload/* pages
+ *   HOD | PRINCIPAL    → requireMonitor()          — /monitor/* pages
+ *   SUPER_ADMIN | MASTER_LAB_ADMIN → requireAnyAdmin() — shared pages
  */
 
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import type { UserRole } from '@/types/database';
 
-export type AdminGuardResult = {
+export type GuardResult = {
   user: { id: string };
-  profile: { name: string; email: string; role: string; account_status: string };
+  profile: { name: string; email: string; role: UserRole; account_status: string };
   supabase: Awaited<ReturnType<typeof createClient>>;
 };
 
-/**
- * requireCompetitionAdmin()
- *
- * Use at the top of any Server Component or server action that needs
- * an authenticated, active Competition Administrator. Redirects to / otherwise.
- *
- * @example
- *   const { user, profile, supabase } = await requireCompetitionAdmin();
- */
-export async function requireCompetitionAdmin(): Promise<AdminGuardResult> {
+async function guard(allowedRoles: UserRole[], loginPath = '/'): Promise<GuardResult> {
   await connection();
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect('/');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect(loginPath);
 
   const { data: profile } = await supabase
     .from('users')
@@ -43,38 +33,43 @@ export async function requireCompetitionAdmin(): Promise<AdminGuardResult> {
     .eq('account_status', 'ACTIVE')
     .single();
 
-  if (profile?.role !== 'COMPETITION_ADMIN') redirect('/');
+  if (!profile || !allowedRoles.includes(profile.role as UserRole)) {
+    redirect(loginPath);
+  }
 
-  return { user, profile, supabase };
+  return { user, profile: profile as GuardResult['profile'], supabase };
 }
 
 /**
- * requireLabAdmin()
- *
- * Use at the top of any Server Component that needs an authenticated,
- * active Lab Admin (or Competition Admin, who can also view lab pages).
- *
- * @example
- *   const { user, profile, supabase } = await requireLabAdmin();
+ * requireSuperAdmin()
+ * Full control — competition creation, approval, publishing.
  */
-export async function requireLabAdmin(): Promise<AdminGuardResult> {
-  await connection();
-  const supabase = await createClient();
+export async function requireSuperAdmin(): Promise<GuardResult> {
+  return guard(['SUPER_ADMIN']);
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+/**
+ * requireMasterLabAdmin()
+ * HackerRank sync and upload management.
+ * Super Admins can also access upload pages.
+ */
+export async function requireMasterLabAdmin(): Promise<GuardResult> {
+  return guard(['SUPER_ADMIN', 'MASTER_LAB_ADMIN']);
+}
 
-  if (!user) redirect('/');
+/**
+ * requireMonitor()
+ * Read-only access for HOD and Principal.
+ * Redirects to the monitor login page if not authenticated.
+ */
+export async function requireMonitor(): Promise<GuardResult> {
+  return guard(['HOD', 'PRINCIPAL'], '/monitor/login');
+}
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('name, email, role, account_status')
-    .eq('user_id', user.id)
-    .eq('account_status', 'ACTIVE')
-    .single();
-
-  if (profile?.role !== 'LAB_ADMIN' && profile?.role !== 'COMPETITION_ADMIN') redirect('/');
-
-  return { user, profile, supabase };
+/**
+ * requireAnyAdmin()
+ * Any administrative role (not monitors).
+ */
+export async function requireAnyAdmin(): Promise<GuardResult> {
+  return guard(['SUPER_ADMIN', 'MASTER_LAB_ADMIN']);
 }

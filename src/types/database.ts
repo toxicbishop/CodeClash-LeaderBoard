@@ -1,34 +1,33 @@
-export type UserRole = 'COMPETITION_ADMIN' | 'LAB_ADMIN';
+export type UserRole = 'SUPER_ADMIN' | 'MASTER_LAB_ADMIN' | 'HOD' | 'PRINCIPAL';
 export type AccountStatus = 'ACTIVE' | 'INACTIVE';
+
 export type CompetitionStatus =
   | 'NOT_STARTED'
-  | 'AWAITING_UPLOAD'
-  | 'PROCESSING'
+  | 'AWAITING_SYNC'
   | 'READY_FOR_REVIEW'
+  | 'APPROVED'
   | 'PUBLISHED';
-export type CompetitionVisibility = 'PUBLIC' | 'RESTRICTED';
-export type LabStatus = 'ACTIVE' | 'INACTIVE';
+
 export type UploadStatus =
-  | 'SUBMITTED'
+  | 'PENDING'
+  | 'SYNCING'
   | 'VALIDATION_FAILED'
   | 'PENDING_APPROVAL'
   | 'APPROVED'
   | 'REJECTED';
-export type SnapshotStatus = 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
 
-export interface ScoringConfig {
-  tiebreakers: string[];
-  boundary_policy: 'ADMIT_ALL' | 'STRICT_CUTOFF';
-}
+export type SnapshotStatus = 'DRAFT' | 'APPROVED' | 'PUBLISHED' | 'SUPERSEDED';
 
-export interface ColumnMapping {
-  external_participant_id: string;
-  participant_name: string;
-  total_score: string;
-  problems_solved?: string;
-  penalty?: string;
-  final_submission_time?: string;
-}
+export type QualificationStatus = 'QUALIFIED' | 'NOT_QUALIFIED' | 'BOUNDARY_REVIEW';
+
+export type TieBreakerCriterion =
+  | 'total_score'
+  | 'problems_solved'
+  | 'penalty'
+  | 'final_submission_time'
+  | 'incorrect_submissions';
+
+// ---- Entities ----------------------------------------------------------------
 
 export interface User {
   user_id: string;
@@ -45,58 +44,68 @@ export interface Competition {
   competition_name: string;
   description: string | null;
   contest_date: string;
-  upload_deadline: string;
   top_k: number;
-  scoring_config: ScoringConfig;
   status: CompetitionStatus;
-  visibility: CompetitionVisibility;
   created_by: string;
   created_at: string;
 }
 
-export interface Lab {
-  lab_id: string;
+export interface ContestSet {
+  set_id: string;
   competition_id: string;
-  lab_name: string;
-  assigned_admin_id: string;
-  status: LabStatus;
+  set_name: string;       // "Set A"
+  set_code: string;       // "setA"
+  hackerrank_slug: string; // "codeclash-2026-setA"
+  is_active: boolean;
   created_at: string;
-  admin?: User;
+}
+
+export interface TieBreakerRule {
+  rule_id: string;
+  competition_id: string;
+  criterion: TieBreakerCriterion;
+  priority: number;
+  direction: 'ASC' | 'DESC';
+  enabled: boolean;
+  approved_by: string | null;
 }
 
 export interface Upload {
   upload_id: string;
   competition_id: string;
-  lab_id: string;
+  set_id: string;
   uploaded_by: string;
-  file_path: string;
-  file_name: string;
+  hackerrank_slug: string;
   upload_version: number;
-  column_mapping: ColumnMapping | null;
   status: UploadStatus;
-  record_count: number;
+  record_count: number | null;
+  sync_metadata: Record<string, unknown> | null;
+  validation_errors: ValidationError[] | null;
+  collision_flags: CollisionFlag[] | null;
   uploaded_at: string;
   approved_by: string | null;
   approved_at: string | null;
   rejection_reason: string | null;
-  lab?: Lab;
 }
 
-export interface ValidationIssue {
-  issue_id: string;
-  upload_id: string;
-  row_number: number;
-  field_name: string | null;
-  issue_type: string;
-  raw_value: string | null;
+export interface ValidationError {
+  row: number;
+  field: string;
   message: string;
-  created_at: string;
+}
+
+export interface CollisionFlag {
+  external_id: string;
+  conflicting_set_id: string;
+  conflicting_set_name: string;
 }
 
 export interface Participant {
   participant_id: string;
   competition_id: string;
-  external_participant_id: string;
+  set_id: string;
+  upload_id: string;
+  external_id: string;    // HackerRank username
   participant_name: string;
   has_collision: boolean;
 }
@@ -104,37 +113,50 @@ export interface Participant {
 export interface Result {
   result_id: string;
   participant_id: string;
-  lab_id: string;
   upload_id: string;
   total_score: number;
-  problems_solved: number;
+  problems_solved: number | null;
   penalty: number | null;
-  final_submission_time: string | null;
+  final_submission_time: number | null;
+  incorrect_submissions: number | null;
+  raw_data: Record<string, unknown> | null;
   created_at: string;
-  participant?: Participant;
-  lab?: Lab;
 }
 
 export interface LeaderboardSnapshot {
-  leaderboard_id: string;
+  snapshot_id: string;
   competition_id: string;
   version: number;
-  generated_at: string;
-  published_at: string | null;
+  generated_by: string | null;
+  approved_by: string | null;
   published_by: string | null;
   status: SnapshotStatus;
+  generated_at: string;
+  approved_at: string | null;
+  published_at: string | null;
 }
 
 export interface LeaderboardEntry {
   entry_id: string;
-  leaderboard_id: string;
+  snapshot_id: string;
   participant_id: string;
-  lab_id: string;
+  set_id: string;
   overall_rank: number;
   total_score: number;
-  problems_solved: number;
+  problems_solved: number | null;
   penalty: number | null;
-  is_qualified: boolean;
+  qualification_status: QualificationStatus;
+  // joined
   participant?: Participant;
-  lab?: Lab;
+  contest_set?: ContestSet;
+}
+
+export interface AuditLog {
+  log_id: string;
+  user_id: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  details: Record<string, unknown> | null;
+  timestamp: string;
 }

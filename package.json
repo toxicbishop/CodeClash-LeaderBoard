@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "admin:sync": "node --no-warnings --experimental-strip-types scripts/seed-admin.ts",
+    "seed:monitor": "node --no-warnings --experimental-strip-types scripts/seed-monitor.ts",
     "seed:review-demo": "node --no-warnings --experimental-strip-types scripts/seed-review-demo.ts",
     "predev": "node --no-warnings --experimental-strip-types scripts/dev-doctor.ts",
     "dev": "next dev --webpack",

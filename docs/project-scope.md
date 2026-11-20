@@ -2,93 +2,192 @@
 
 ## System Overview
 
-The **Multi-Lab Contest Leaderboard Management System** is a centralized platform engineered to collect, validate, consolidate, rank, and publish results from multi-laboratory programming contests. 
+The **Coding Competition – Centralized Leaderboard Management System** (Version 2.0) is a centralized platform engineered to collect, validate, consolidate, rank, and publish results from departmental coding competitions.
 
-When coding competitions are distributed across multiple physical computer labs, each lab typically operates its own contest instance or leaderboard. Consolidating these results manually via separate spreadsheets introduces data-entry errors, duplicate entries, inconsistent tie-breaking, and critical delays. This application automates the end-to-end result consolidation process while providing strict role-based access control.
+The application receives leaderboard data from multiple contest sets, automatically validates uploaded files, consolidates candidate scores into a unified dataset, calculates overall rankings using a configurable lexicographical tie-breaking engine, and publishes an authoritative unified leaderboard.
+
+Furthermore, Version 2.0 introduces dedicated, read-only monitoring dashboards for the **Principal** and **HOD** (Head of Department), granting institutional authorities full visibility into competition progress, participant statistics, and leaderboard status without granting data modification privileges.
 
 ---
 
-## Core Concept
+## What Has Changed From the Previous Version?
 
-1. **Independent Uploads:** Each lab administrator independently manages and submits their lab's contest leaderboard (`.csv` or `.xlsx`).
-2. **Data Validation:** The platform validates records, detects formatting errors, flags duplicates within the lab, and identifies cross-lab participant collisions.
-3. **Centralized Approval:** The competition administrator reviews incoming submissions and validation reports, approving clean datasets or rejecting flawed uploads with correction requests.
-4. **Automated Consolidation & Ranking:** Approved lab records are merged into a unified competition dataset, evaluated against global scoring and tie-breaking rules, and assigned global ranks.
-5. **Unified Top-K Publication:** A single, authoritative leaderboard highlighting the overall Top-K contestants is published and accessible across all participating labs, spectators, and projector displays.
+The original application specification followed a distributed **multi-lab administrative model**, wherein individual lab administrators uploaded partial contest results for their respective physical computer labs. Following a review of the competition structure, the architecture has transitioned to a **centralized contest-set model**.
+
+### Comparison: Previous vs. Revised Architecture
+
+| Component | Previous Approach (v1.0) | Revised Approach (v2.0) |
+| :--- | :--- | :--- |
+| **Data Collection** | Each physical lab administrator uploads data | One Master Lab Admin uploads all contest-set files |
+| **Data Organization** | Lab-wise leaderboards | Contest-set-wise leaderboards |
+| **Upload Responsibility** | Multiple independent lab administrators | Single centralized administrator (Master Lab Admin) |
+| **Upload Slots** | Based on number of physical labs | Based on number of contest sets (e.g., Set A, Set B, Set C, Set D) |
+| **Leaderboard Consolidation** | Combine lab uploads | Combine all contest-set leaderboards into a unified ranking |
+| **Ranking Scope** | Unified ranking across physical lab uploads | Unified ranking across all contest sets without fixed per-set quotas |
+| **Institutional Monitoring**| Primarily administrator-focused | Dedicated read-only dashboards for Principal and HOD |
+| **Permissions Model** | Lab-admin-oriented segregation | Centralized admin + strict read-only institutional monitoring roles |
+| **Publication Workflow** | Administrator-controlled | Controlled approval, immutable snapshots, and audited publication |
+
+```mermaid
+flowchart TD
+    subgraph Previous_Architecture["Previous Architecture (v1.0)"]
+        direction TB
+        LA1["Lab Admin 1"] -->|Uploads Lab 1 File| CA1["Competition Admin"]
+        LA2["Lab Admin 2"] -->|Uploads Lab 2 File| CA1
+        LAN["Lab Admin N"] -->|Uploads Lab N File| CA1
+        CA1 -->|Lab-based Consolidation| LB1["Unified Leaderboard"]
+    end
+
+    subgraph Revised_Architecture["Revised Architecture (v2.0)"]
+        direction TB
+        MLA["Master Lab Admin (Centralized)"]
+        MLA -->|Uploads Set A File| ENG["Validation Engine"]
+        MLA -->|Uploads Set B File| ENG
+        MLA -->|Uploads Set C File| ENG
+        MLA -->|Uploads Set D File| ENG
+        ENG --> APP["Admin Approval Gate"]
+        APP --> CON["Consolidation & Ranking Engine"]
+        CON --> SA["Super Admin Publication"]
+        SA --> PUB_LB["Published Unified Leaderboard"]
+        PUB_LB -.->|Read-Only Monitoring| HOD["HOD Dashboard"]
+        PUB_LB -.->|Read-Only Monitoring| PRIN["Principal Dashboard"]
+        PUB_LB --> CONT["Contestants / Public (/leaderboard)"]
+    end
+```
+
+### Deprecated & Removed Requirements
+
+The following requirements from the previous version have been superseded and removed from the active architecture:
+* Individual lab administrator accounts for uploading leaderboard files.
+* Separate upload dashboards partitioned per physical laboratory.
+* Lab-wise upload ownership, quota allocation, and per-lab approval workflows.
+* Lab-based consolidation logic and lab-specific ranking as the primary ranking mechanism.
+
+The revised system organizes uploads around **contest sets**, not physical laboratories.
+
+---
+
+## Revised Competition Structure
+
+In the baseline competition model, contest questions are divided into independent contest sets:
+
+* **Set A** (`/setA`)
+* **Set B** (`/setB`)
+* **Set C** (`/setC`)
+* **Set D** (`/setD`)
+
+Each contest-set link is utilized simultaneously by contestants seated across multiple physical laboratories to prevent visual collusion. Consequently, the export file generated for a given contest set already contains participant records spanning all laboratories using that set.
+
+| Contest Set | Participating Labs | Uploaded Leaderboard |
+| :--- | :--- | :--- |
+| **Set A** | Lab 1, Lab 2, Lab 3, Lab 4 | File A (Set A Export) |
+| **Set B** | Lab 1, Lab 2, Lab 3, Lab 4 | File B (Set B Export) |
+| **Set C** | Lab 1, Lab 2, Lab 3, Lab 4 | File C (Set C Export) |
+| **Set D** | Lab 1, Lab 2, Lab 3, Lab 4 | File D (Set D Export) |
+
+> [!IMPORTANT]
+> The system must support a **configurable number of contest sets**. While the baseline competition uses four sets (A–D), the platform must not hardcode four as a permanent constraint.
 
 ---
 
 ## User Roles & Responsibilities
 
+The system defines four authenticated user roles and a public viewer tier:
+
 ```mermaid
 flowchart TD
-    CA["Competition Administrator (Central Authority)"]
-    LA1["Lab Admin 1 - Lab 1 Management"]
-    LA2["Lab Admin 2 - Lab 2 Management"]
-    LAN["Lab Admin N - Lab N Management"]
-    PUB["Public / Spectators / Contestants"]
+    SA["Super Admin / Competition Admin\n(Full Authority)"]
+    MLA["Master Lab Admin\n(Centralized Uploads & Consolidation)"]
+    PRIN["Principal\n(Read-Only Institutional Monitor)"]
+    HOD["Head of Department (HOD)\n(Read-Only Institutional Monitor)"]
+    PUB["Public / Contestants\n(Unified Leaderboard Display)"]
 
-    CA -->|Configures and Approves| LA1
-    CA -->|Configures and Approves| LA2
-    CA -->|Configures and Approves| LAN
-    CA -->|Publishes Unified Snapshot| PUB
-    LA1 -->|Uploads Lab 1 CSV/XLSX| CA
-    LA2 -->|Uploads Lab 2 CSV/XLSX| CA
-    LAN -->|Uploads Lab N CSV/XLSX| CA
+    SA -->|Configures Sets, Rules, Approvals & Publish| MLA
+    SA -->|Maintains Accounts| PRIN
+    SA -->|Maintains Accounts| HOD
+    MLA -->|Uploads Set Files & Generates Standings| SA
+    SA -->|Publishes Snapshot| PUB
+    SA -.->|Live Status & Snapshots| PRIN
+    SA -.->|Live Status & Snapshots| HOD
 ```
 
-### 1. Competition Administrator (Super Admin)
-* Creates and manages multiple competitions over time.
-* Dynamically registers participating labs and provisions lab administrator accounts.
-* Sets submission deadlines, scoring policies, and qualification limits (Top-K value).
-* Monitors real-time upload progress across all labs from a centralized status matrix.
-* Inspects data validation reports, reviews raw files, and approves or rejects submissions.
-* Executes consolidation, calculates unified rankings, and publishes/unpublishes the leaderboard.
-* Exports final competition audit logs and results.
+### 1. Super Admin / Competition Admin
+* Possesses complete administrative authority over the system.
+* Creates and configures competitions, contest sets, and qualification parameters (Top-K value).
+* Manages user accounts and role assignments.
+* Assigns and oversees the Master Lab Admin.
+* Inspects uploaded files and automated validation reports across all contest sets.
+* Approves or rejects uploaded files.
+* Reviews and approves the ranking rules and tie-breaking configuration.
+* Reviews the consolidated leaderboard and triggers official publication.
+* Inspects system audit logs and manages post-publication corrections.
 
-### 2. Lab Administrator
-* Receives credentials created/assigned by the competition administrator (unrestricted self-registration is disabled).
-* Accesses a dedicated dashboard strictly scoped to their assigned lab.
-* Uploads the lab's contest leaderboard file (`.csv` or `.xlsx`).
-* Maps arbitrary source columns (e.g., from HackerRank exports) to standardized internal fields.
-* Previews parsed data and reviews validation errors or warnings.
-* Corrects and re-uploads data prior to administrator approval.
-* Accesses the published unified leaderboard once released.
-* **Access Boundary:** A lab administrator cannot view, modify, upload, or delete data belonging to any other lab.
+### 2. Master Lab Admin
+* Serves as the central operational manager for leaderboard data ingestion.
+* Accesses the centralized upload dashboard with dedicated slots for each contest set.
+* Uploads leaderboard files for each contest set (files may be uploaded asynchronously in any order).
+* Inspects real-time validation reports; corrects and re-uploads invalid files.
+* Proposes or tunes ranking and tie-breaking criteria (subject to Super Admin approval).
+* Generates the consolidated leaderboard once all required sets are approved.
+* Reviews the consolidated standings prior to final administrative sign-off.
+* Cannot publish the leaderboard independently without Super Admin authorization.
 
-### 3. Public / Contestants / Spectators
-* Views the live or finalized unified leaderboard on projector screens or web browsers via a shared competition URL.
-* Filters by lab, searches participants, and inspects Top-K qualification badges.
+### 3. Head of Department (HOD)
+* Dedicated, read-only institutional monitoring dashboard.
+* Monitors overall competition progress, participant metrics, and upload completion.
+* Inspects individual set-wise leaderboards and switching between Set A, B, C, D.
+* Views the draft and published unified leaderboard, including Top-K qualified participants.
+* Inspects the configured ranking methodology and tie-breaking criteria for transparency.
+* Tracks approval and publication milestones.
+* Optionally exports summary reports.
+* Cannot upload, modify, delete data, or publish results.
+
+### 4. Principal
+* Dedicated, read-only institutional oversight dashboard.
+* Monitors campus-wide competition metrics and total participant counts.
+* Observes contest-set upload and approval statuses.
+* Inspects set-wise and unified rankings, Top-K rosters, and applied tie-breaking rules.
+* Tracks the formal result publication status.
+* Optionally exports leaderboard summaries.
+* Strictly read-only access enforced on the backend.
+
+### 5. Public / Contestants / Spectators
+* Views the unified published leaderboard via the simplified `/leaderboard` route (or `/competitions/[slug]/leaderboard`).
+* Inspects rank, participant name, participant ID, contest set, score, problems solved, and Top-K qualification badges.
+* Uses real-time search, set-filtering, and CSV/Excel/print export tools.
 
 ---
 
 ## Event Context: Code Clash 2026
 
-While designed as a reusable multi-competition platform, the immediate event baseline is **Code Clash 2026**:
-
+While designed as a generic, reusable competition management platform, the primary baseline event is **Code Clash 2026**:
 * **Contest Platform:** HackerRank Community.
-* **Environment:** Contestants write complete Python programs with standard input/output.
-* **Rounds & Durations:**
+* **Participant Distribution:** Python 3 standard contest baseline across multiple physical laboratories.
+* **Contest Structure:**
   * **Round 1 (Easy):** 40 minutes | 10 questions (2 marks each) = 20 marks max.
   * **Round 2 (Medium):** 50 minutes | 5 questions (6 marks each) = 30 marks max.
   * **Round 3 (Hard):** 60 minutes | 3 questions (15, 15, 20 marks) = 50 marks max.
-  * **Total Contest Time:** 150 minutes (excluding setup/breaks) | 18 questions | 100 marks maximum.
-* **Lab Partitioning:** Multiple physical labs, each assigned distinct question sets (Sets A–D) to prevent visual collusion.
+  * **Total Contest:** 150 minutes | 18 questions | 100 marks maximum.
+* **Contest Sets:** 4 independent sets (Sets A, B, C, D) partitioned across laboratories to prevent collusion.
 
 ---
 
 ## Scope Boundaries
 
-* **In Scope:**
-  * Multi-competition lifecycle management.
-  * Multi-lab admin provisioning and authorization.
-  * CSV and Excel file ingestion with dynamic column mapping.
-  * Row-level validation and cross-lab duplicate detection.
-  * Configurable scoring and tie-breaking algorithms.
-  * Top-K participant qualification indicators.
-  * Single unified leaderboard with search, lab filtering, and CSV/Excel/print export.
-  * Versioned publication history and audit trails.
-* **Out of Scope:**
-  * Code submission, compilation, and automated test-case evaluation (handled entirely on HackerRank).
-  * Direct contest authoring or automated contest scheduling on HackerRank.
-  * Plagiarism code-similarity analysis (handled prior to or outside leaderboard ingestion).
+### In Scope
+* Multi-competition configuration with dynamic, configurable contest sets.
+* Centralized Master Lab Admin upload console supporting CSV and XLSX files.
+* Dynamic column mapping for arbitrary leaderboard formats (HackerRank CSV/Excel).
+* Comprehensive file validation: schema integrity, numeric checks, row error reporting, and cross-set duplicate participant detection.
+* Configurable lexicographical ranking engine supporting dynamic tie-breaking priorities.
+* Shared rank support (e.g., 1, 2, 2, 4) and configurable Top-K boundary tie handling.
+* Super Admin approval gates and immutable published snapshot versioning (`v1.0`, `v2.0`).
+* Dedicated read-only monitoring dashboards for Principal and HOD.
+* High-contrast public/contestant unified leaderboard with search, set filtering, and exports.
+* Complete system audit trails for administrative accountability.
+
+### Out of Scope
+* Direct code compilation, execution, or automated test-case evaluation (handled externally on HackerRank).
+* Automated contest scheduling or question authoring on third-party platforms.
+* Code similarity or plagiarism detection (conducted prior to leaderboard ingestion).
+* Multi-lab hardware and physical networking management.
