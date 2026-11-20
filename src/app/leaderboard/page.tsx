@@ -1,6 +1,11 @@
 import Link from 'next/link';
+import { connection } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { LeaderboardTable, LeaderboardRowItem } from '@/app/competitions/[slug]/leaderboard/LeaderboardTable';
+import {
+  LeaderboardTable,
+  LeaderboardRowItem,
+  ContestSetItem,
+} from '@/app/competitions/[slug]/leaderboard/LeaderboardTable';
 import { FatFooter } from '@/components/FatFooter';
 import type { Competition } from '@/types/database';
 
@@ -8,17 +13,18 @@ interface RawEntry {
   entry_id: string;
   overall_rank: number;
   total_score: number | string;
-  problems_solved: number;
+  problems_solved: number | null;
   penalty: number | null;
-  is_qualified: boolean;
+  qualification_status: 'QUALIFIED' | 'NOT_QUALIFIED' | 'BOUNDARY_REVIEW';
   participant_id: string;
-  lab_id: string;
+  set_id: string;
   participants: {
-    external_participant_id: string;
+    external_id: string;
     participant_name: string;
   } | null;
-  labs: {
-    lab_name: string;
+  contest_sets: {
+    set_name: string;
+    set_code: string;
   } | null;
 }
 
@@ -34,6 +40,7 @@ interface PageProps {
 }
 
 export default async function LeaderboardPage({ searchParams }: PageProps) {
+  await connection();
   const resolvedParams = searchParams ? await searchParams : undefined;
   const requestedSlug = resolvedParams?.comp;
   const adminClient = createAdminClient();
@@ -89,24 +96,46 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
   }
 
   // 2. Fetch latest snapshot (prefer PUBLISHED, fallback to DRAFT if in review)
-  const { data: snapshots } = await adminClient
+  const { data: publishedSnapshots } = await adminClient
     .from('leaderboard_snapshots')
     .select('*')
     .eq('competition_id', activeComp.competition_id)
+    .eq('status', 'PUBLISHED')
     .order('version', { ascending: false })
     .limit(1);
 
-  const currentSnapshot = snapshots && snapshots.length > 0 ? snapshots[0] : null;
+  let currentSnapshot = publishedSnapshots && publishedSnapshots.length > 0 ? publishedSnapshots[0] : null;
 
-  // 3. Fetch active labs for filtering
-  const { data: labs } = await adminClient
-    .from('labs')
-    .select('lab_id, lab_name')
+  // Fallback to latest DRAFT if no published snapshot yet exists
+  if (!currentSnapshot) {
+    const { data: latestSnapshots } = await adminClient
+      .from('leaderboard_snapshots')
+      .select('*')
+      .eq('competition_id', activeComp.competition_id)
+      .order('version', { ascending: false })
+      .limit(1);
+    currentSnapshot = latestSnapshots && latestSnapshots.length > 0 ? latestSnapshots[0] : null;
+  }
+
+  // 3. Fetch active contest sets
+  const { data: contestSetsData } = await adminClient
+    .from('contest_sets')
+    .select('set_id, set_name, set_code')
     .eq('competition_id', activeComp.competition_id)
-    .eq('status', 'ACTIVE')
-    .order('lab_name', { ascending: true });
+    .eq('is_active', true)
+    .order('set_code', { ascending: true });
 
-  // 4. Fetch entries
+  const contestSets: ContestSetItem[] = contestSetsData || [];
+
+  // 4. Fetch tie-breaker rules for display
+  const { data: tieBreakersData } = await adminClient
+    .from('tie_breaker_rules')
+    .select('criterion, direction')
+    .eq('competition_id', activeComp.competition_id)
+    .eq('enabled', true)
+    .order('priority', { ascending: true });
+
+  // 5. Fetch leaderboard entries
   let rowItems: LeaderboardRowItem[] = [];
   if (currentSnapshot) {
     const { data: entries } = await adminClient
@@ -117,13 +146,13 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         total_score,
         problems_solved,
         penalty,
-        is_qualified,
+        qualification_status,
         participant_id,
-        lab_id,
-        participants!inner(external_participant_id, participant_name),
-        labs!inner(lab_name)
+        set_id,
+        participants!inner(external_id, participant_name),
+        contest_sets!inner(set_name, set_code)
       `)
-      .eq('leaderboard_id', currentSnapshot.leaderboard_id)
+      .eq('snapshot_id', currentSnapshot.snapshot_id)
       .order('overall_rank', { ascending: true })
       .order('total_score', { ascending: false });
 
@@ -134,18 +163,20 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         total_score: Number(e.total_score),
         problems_solved: e.problems_solved,
         penalty: e.penalty !== null ? Number(e.penalty) : null,
-        is_qualified: e.is_qualified,
+        qualification_status: e.qualification_status,
         participant_id: e.participant_id,
-        external_id: e.participants?.external_participant_id || 'Unknown',
+        external_id: e.participants?.external_id || 'Unknown',
         participant_name: e.participants?.participant_name || 'Anonymous',
-        lab_name: e.labs?.lab_name || 'Lab',
-        lab_id: e.lab_id,
+        set_name: e.contest_sets?.set_name || 'Contest Set',
+        set_code: e.contest_sets?.set_code || '',
+        set_id: e.set_id,
       }));
     }
   }
 
   const highScore = rowItems.length > 0 ? Math.max(...rowItems.map((r) => r.total_score)) : 0;
-  const qualifiedCount = rowItems.filter((r) => r.is_qualified).length;
+  const qualifiedCount = rowItems.filter((r) => r.qualification_status === 'QUALIFIED').length;
+  const isDraft = currentSnapshot?.status === 'DRAFT';
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 selection:bg-indigo-500 selection:text-white">
@@ -222,10 +253,10 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
 
               <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Labs Active
+                  Contest Sets
                 </span>
                 <div className="text-2xl font-black tabular-nums text-zinc-900 dark:text-zinc-100 mt-1">
-                  {labs?.length || 0}
+                  {contestSets.length}
                 </div>
               </div>
 
@@ -254,10 +285,12 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         {currentSnapshot && rowItems.length > 0 ? (
           <LeaderboardTable
             entries={rowItems}
-            labs={labs || []}
+            sets={contestSets}
             topK={activeComp.top_k}
             competitionName={activeComp.competition_name}
-            isDraft={false}
+            isDraft={isDraft}
+            tieBreakers={tieBreakersData || []}
+            lastUpdated={currentSnapshot.published_at || currentSnapshot.generated_at}
           />
         ) : (
           <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 sm:p-16 text-center shadow-sm">
@@ -268,7 +301,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
               Results Under Evaluation
             </h2>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
-              Contest submissions are currently being verified across participating computer laboratories.
+              Contest submissions are currently being verified across participating contest sets.
               Official rankings will appear on this screen as soon as they are finalized.
             </p>
           </div>

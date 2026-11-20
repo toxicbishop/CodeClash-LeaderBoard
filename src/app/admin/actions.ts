@@ -352,6 +352,85 @@ export async function publishLeaderboard(snapshotId: string): Promise<ActionResp
 }
 
 // ---------------------------------------------------------------------------
+// Tie-breaker rules management
+// ---------------------------------------------------------------------------
+
+export interface RuleInput {
+  criterion: string;
+  direction: 'ASC' | 'DESC';
+  enabled: boolean;
+  priority: number;
+}
+
+export async function saveTieBreakerRules(
+  competitionId: string,
+  rules: RuleInput[]
+): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+  const adminClient = await createAdminClient();
+
+  const validCriteria = [
+    'total_score',
+    'problems_solved',
+    'penalty',
+    'final_submission_time',
+    'incorrect_submissions',
+  ];
+
+  for (const r of rules) {
+    if (!validCriteria.includes(r.criterion)) {
+      return { error: 'Invalid ranking criterion: ' + r.criterion };
+    }
+    if (r.direction !== 'ASC' && r.direction !== 'DESC') {
+      return { error: 'Invalid sort direction for ' + r.criterion };
+    }
+  }
+
+  // Delete existing rules for this competition
+  const { error: delError } = await adminClient
+    .from('tie_breaker_rules')
+    .delete()
+    .eq('competition_id', competitionId);
+
+  if (delError) {
+    return { error: 'Failed to reset existing rules: ' + delError.message };
+  }
+
+  // Insert new rules
+  const rowsToInsert = rules.map((r) => ({
+    competition_id: competitionId,
+    criterion: r.criterion,
+    direction: r.direction,
+    enabled: r.enabled,
+    priority: r.priority,
+    approved_by: user.id,
+  }));
+
+  const { error: insError } = await adminClient
+    .from('tie_breaker_rules')
+    .insert(rowsToInsert);
+
+  if (insError) {
+    return { error: 'Failed to save rules: ' + insError.message };
+  }
+
+  // Audit log
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'TIE_BREAKER_RULES_UPDATED',
+    entity_type: 'competition',
+    entity_id: competitionId,
+    details: { rules: rowsToInsert },
+  });
+
+  revalidatePath(`/admin/competitions/${competitionId}`);
+  revalidatePath(`/admin/competitions/${competitionId}/rules`);
+  revalidatePath('/leaderboard');
+  return { success: true };
+}
+
+
+// ---------------------------------------------------------------------------
 // User management (Super Admin provisions accounts)
 // ---------------------------------------------------------------------------
 

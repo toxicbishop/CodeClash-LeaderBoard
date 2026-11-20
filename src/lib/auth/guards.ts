@@ -73,3 +73,12 @@ export async function requireMonitor(): Promise<GuardResult> {
 export async function requireAnyAdmin(): Promise<GuardResult> {
   return guard(['SUPER_ADMIN', 'MASTER_LAB_ADMIN']);
 }
+
+/**
+ * requireAnyAuthorizedUser()
+ * Any authorized stakeholder: Super Admin, Master Lab Admin, HOD, or Principal.
+ */
+export async function requireAnyAuthorizedUser(): Promise<GuardResult> {
+  return guard(['SUPER_ADMIN', 'MASTER_LAB_ADMIN', 'HOD', 'PRINCIPAL']);
+}
+
