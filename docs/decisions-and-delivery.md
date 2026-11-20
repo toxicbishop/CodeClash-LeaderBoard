@@ -1,6 +1,6 @@
 # Decisions and Delivery Plan
 
-This document formalizes the phased implementation roadmap, architectural decisions register, and end-to-end verification test suite matching Sections 12–14 of `Leaderboard_Developer_Doc.docx`.
+This document formalizes the phased implementation roadmap, architectural decisions register, and verification test matrix matching Sections 14, 17, and 18 of `Revised_LeaderBoardManagement(CodeClash).docx` (Version 2.0).
 
 ---
 
@@ -8,105 +8,121 @@ This document formalizes the phased implementation roadmap, architectural decisi
 
 ```mermaid
 flowchart LR
-    P1["Phase 1: Core Infrastructure and Auth"] --> P2["Phase 2: Upload and Validation Engine"]
-    P2 --> P3["Phase 3: Consolidation and Ranking"]
-    P3 --> P4["Phase 4: Publication and Projector Display"]
-    P4 --> P5["Phase 5: Enhancements and Integrations"]
+    P1["Phase 1: Core Infrastructure, Contest Sets & RBAC"] --> P2["Phase 2: Centralized Upload & Validation Engine"]
+    P2 --> P3["Phase 3: Consolidation & Lexicographical Ranking"]
+    P3 --> P4["Phase 4: Publication, Public Leaderboard & Exports"]
+    P4 --> P5["Phase 5: Principal & HOD Monitoring Dashboards"]
 ```
 
-### Phase 1: Core Infrastructure & Role-Based Access Control
+### Phase 1: Core Infrastructure, Contest Sets & Role-Based Access Control
 * **Scope:**
-  * Initialize PostgreSQL database and define Prisma ORM schema models (`User`, `Competition`, `Lab`, `Upload`, `Participant`, `Result`, `LeaderboardSnapshot`, `LeaderboardEntry`).
-  * Implement session-based authentication with role guards (`COMPETITION_ADMIN`, `LAB_ADMIN`).
-  * Build the Competition Administrator dashboard: competition creation, lab registration, and lab administrator account provisioning.
-  * Build the base Lab Administrator dashboard with assigned lab profile.
-* **Exit Condition:** Competition Admin can create a competition with 4 labs, assign 4 lab admin accounts, and each admin can log in to view their scoped workspace.
+  * Initialize PostgreSQL database with Prisma ORM schema models: `users`, `competitions`, `contest_sets`, `uploads`, `participants`, `results`, `tiebreaker_rules`, `leaderboard_snapshots`, `leaderboard_entries`, and `audit_logs`.
+  * Implement session-based authentication with role-based guards: `SUPER_ADMIN`, `MASTER_LAB_ADMIN`, `HOD`, and `PRINCIPAL`.
+  * Build Super Admin competition management: competition setup, dynamic contest set configuration (e.g., Set A, Set B, Set C, Set D), and user account provisioning.
+  * Build base Master Lab Admin console and dedicated monitoring shells for HOD and Principal.
+* **Exit Condition:** Super Admin can configure a competition with 4 contest sets and assign Master Lab Admin, HOD, and Principal accounts; each user can sign in and land on their respective dashboard.
 
 ---
 
-### Phase 2: Upload Management & Validation Engine
+### Phase 2: Centralized Contest Set Upload & Validation Engine
 * **Scope:**
-  * Multipart file upload handler for `.csv` and `.xlsx` files with magic-byte validation and secure disk archiving.
-  * Interactive Column Mapping interface allowing lab admins to map arbitrary export headers to standard internal attributes.
-  * Fast file parser (`xlsx` / `papaparse`) and validation engine:
+  * Multipart file upload service supporting `.csv` and `.xlsx` files with MIME-type and magic-byte verification.
+  * Centralized upload dashboard for the Master Lab Admin with independent slots for each contest set, allowing uploads in **any order**.
+  * Dynamic column mapping interface (mapping raw headers to `participant_code`, `name`, `score`, `problems_solved`, `penalty`).
+  * Automated file parser (`xlsx` / `papaparse`) and validation service:
     * Rejection of missing participant IDs/names, non-numeric or negative scores.
-    * Detection of internal duplicate participant IDs within the same file.
-  * Pre-submission preview table and structured validation issue report.
-  * Real-time Upload Status Monitoring Matrix on the Competition Admin dashboard.
-* **Exit Condition:** Lab Admin can upload a sample contest file, map columns, preview parsed records, inspect validation flags, and submit for review.
+    * Detection of internal duplicate participant IDs within the uploaded file.
+    * Cross-set duplicate participant detection flagging candidate collisions across contest sets.
+  * Itemized validation issue report (total records, valid, invalid, duplicates, row-level errors) and 10-row preview.
+  * 3-tier status tracking (`upload_status`, `validation_status`, `approval_status`) and Super Admin review/approval actions.
+* **Exit Condition:** Master Lab Admin can upload sample files for Sets A, B, C, D in arbitrary order, map columns, preview parsed records, inspect validation flags, and receive Super Admin approvals.
 
 ---
 
-### Phase 3: Centralized Consolidation & Ranking Engine
+### Phase 3: Centralized Consolidation & Lexicographical Ranking Engine
 * **Scope:**
-  * Competition Admin review interface: view submitted file details, validation summaries, and trigger **Approve** or **Reject** (with feedback).
-  * Centralized consolidation service merging approved records across all participating labs.
-  * Cross-lab participant collision detector (flagging same ID in multiple labs).
-  * Configurable ranking algorithm:
-    * Primary: Descending `total_score`.
-    * Secondary: Descending `problems_solved`.
-    * Tertiary: Ascending `penalty` / contest duration.
-  * Shared rank assignment logic (e.g., ties at rank 3 skip to rank 5).
-  * Automated Top-K boundary selector and tie-resolution handler.
-* **Exit Condition:** Given approved uploads from 4 labs totaling 120 participants, the system consolidates them into a single ranked dataset, correctly assigns ranks and tie-breaks, and selects the Top-K.
+  * Completion gate: Consolidation remains locked until all configured contest sets are uploaded, valid, and approved.
+  * Consolidation engine merging all approved set records into a unified dataset while preserving source upload references.
+  * Configurable lexicographical ranking engine supporting dynamic criteria reordering and direction:
+    * Primary: Descending `Total Score`.
+    * Secondary: Descending `Problems Solved`.
+    * Tertiary: Ascending `Penalty` (contest time).
+    * Quaternary: Earlier `Final Accepted Time`.
+    * Quinary: Ascending `Incorrect Submissions`.
+  * Shared rank assignment logic (e.g., tied at 1st place gives 1, 1, 3).
+  * Purely merit-based cross-set ranking without artificial per-set quotas.
+  * Automated Top-K boundary selector and tie-resolution review workflow.
+* **Exit Condition:** Given approved uploads across Sets A, B, C, D totaling 180 participants, the system consolidates them into a single ranked list, resolves ties lexicographically, handles shared ranks, and identifies the Top-K.
 
 ---
 
-### Phase 4: Publication, Projector View & Exports
+### Phase 4: Leaderboard Publication, Public View & Exports
 * **Scope:**
-  * Publication approval gate: draft snapshot generated in `Ready for Review` status.
-  * One-click **Publish Leaderboard** generating immutable versioned snapshot (`v1.0`).
-  * Public / Projector Leaderboard (`/competitions/[id]/leaderboard`):
-    * High-contrast, responsive layout optimized for auditoriums.
-    * Search by participant name/ID, lab filter, and Top-K filter toggle.
-    * Visual qualification cards/badges for Top-K ranks.
-  * Export engine: Download published results as CSV, Excel (`.xlsx`), or formatted print PDF.
-  * Versioned republishing workflow (`v2.0`) in case of post-publication adjustments.
-* **Exit Condition:** Shared leaderboard is live, displays identical rankings to all lab monitors simultaneously, and exports clean CSV/Excel files.
+  * Publication approval gate: Consolidated results held in `Ready for Review` draft status until Super Admin approval.
+  * One-click **Publish Leaderboard** generating an immutable snapshot (`v1.0`).
+  * Simplified public and contestant leaderboard route (`/leaderboard` and `/competitions/[slug]/leaderboard`):
+    * High-contrast, responsive layout optimized for auditoriums, lab projectors, and mobile screens.
+    * Search by participant name/code, filter by contest set, and toggle Top-K view.
+    * Visual podium cards and qualification badges for Top-K contestants.
+  * Export service: One-click export to CSV, Excel (`.xlsx`), and print-friendly PDF.
+  * Versioned republication workflow (`v2.0`) in case of post-publication adjustments.
+* **Exit Condition:** The unified leaderboard is live on `/leaderboard`, displays identical rankings to all lab monitors simultaneously, and exports clean CSV/Excel files.
 
 ---
 
-### Phase 5: Optional Enhancements
-* Direct automated HackerRank Community leaderboard polling worker.
-* Automated email / system alerts for deadline reminders and submission approvals.
-* Historical multi-competition comparative analytics.
+### Phase 5: Principal and HOD Monitoring Dashboards
+* **Scope:**
+  * Dedicated monitoring route (`/monitoring`) accessible to HOD and Principal accounts.
+  * Metrics overview: Total participants, contest sets count, upload completion ($N/N$), approval status, Top-K threshold, and publication state.
+  * Set-wise leaderboard tab switcher (inspect Set A, Set B, Set C, Set D standings).
+  * Unified leaderboard view with real-time draft/provisional and published indicators.
+  * Ranking transparency card detailing the exact tie-breaking criteria in priority order.
+  * Strict read-only backend enforcement blocking all state mutations (upload, edit, delete, publish).
+* **Exit Condition:** Principal and HOD log into independent monitoring dashboards, view real-time contest progress and set-wise leaderboards, but receive HTTP 403 Forbidden on any administrative write endpoint.
 
 ---
 
 ## Decisions Register
 
-| Decision Area | Status | Agreed Policy |
+| Decision Area | Status | Agreed Policy (Version 2.0) |
 | :--- | :--- | :--- |
-| **Primary Ingestion Method** | **Confirmed** | Independent `.csv` / `.xlsx` file upload by Lab Admins with dynamic column mapping. |
-| **Number of Labs** | **Confirmed** | Dynamic. Configured per competition by the Competition Administrator. |
-| **Upload Timing** | **Confirmed** | Independent uploads; labs can submit asynchronously before the deadline. |
-| **Finalization Gate** | **Confirmed** | All participating labs must be submitted, validated, and explicitly approved before publishing. |
-| **Leaderboard Scope** | **Confirmed** | One single, unified leaderboard combining all eligible participants across all labs. |
-| **Top-K Value** | **Configurable** | Defined at competition creation (default $K = 10$). |
-| **Shared Ranks** | **Confirmed** | Identical results share rank (e.g. 1, 2, 2, 4) rather than arbitrary alphabetical ordering. |
-| **Tie at Top-K Cutoff** | **Configurable** | Pre-configured policy: admit all tied participants or apply secondary criteria. |
-| **Re-upload Policy** | **Confirmed** | Allowed before final approval; creates new version and archives previous attempts. |
-| **Snapshot Immutability** | **Confirmed** | Published snapshots are immutable; corrections produce incremented versions (`v2.0`). |
-| **Tech Stack Alignment** | **Confirmed** | Next.js 16 + React 19 + TypeScript + Tailwind CSS + Prisma + PostgreSQL. |
+| **Data Collection Model** | **Confirmed** | Single Master Lab Admin uploads all contest-set files through a centralized console. |
+| **Data Organization** | **Confirmed** | Organized around contest sets (e.g., Sets A, B, C, D) rather than physical laboratories. |
+| **Number of Contest Sets** | **Configurable** | Configured per competition by the Super Admin (baseline: 4 sets). |
+| **Upload Timing & Order** | **Confirmed** | Independent upload slots; files can be submitted in any order prior to the deadline. |
+| **Completion Gate** | **Confirmed** | All configured contest sets must be uploaded, valid, and approved before consolidation unlocks. |
+| **Ranking Methodology** | **Confirmed** | Unified ranking across all contest sets using a configurable lexicographical tie-breaking engine. |
+| **Set Quotas** | **Confirmed** | Strictly prohibited. Ranks are assigned purely on overall performance without per-set quotas. |
+| **Shared Ranks** | **Confirmed** | Equal scores across all criteria share rank (e.g., 1, 1, 3) rather than arbitrary alphabetical ordering. |
+| **Top-K Cutoff Ties** | **Configurable** | Super Admin reviews boundary ties and applies pre-approved institutional policy. |
+| **Contest-Set Equivalence**| **Review** | Organizers must verify equivalence of questions, marks, and duration before comparing raw scores. |
+| **Institutional Monitoring**| **Confirmed** | Dedicated read-only dashboards for Principal and HOD. |
+| **Snapshot Immutability** | **Confirmed** | Published snapshots are immutable (`v1.0`); post-publication fixes yield version `v2.0`. |
+| **Public Endpoint** | **Confirmed** | Clean `/leaderboard` route showing contestant-facing unified standings. |
 
 ---
 
 ## Verification Test Matrix & Acceptance Criteria
 
-Every release milestone must pass this test plan before deployment:
+Every milestone must pass this verification test plan:
 
 | Test ID | Test Scenario | Expected Result |
 | :--- | :--- | :--- |
-| **TC-01** | Create competition with 4 labs | 4 lab slots created and linked to competition. |
-| **TC-02** | Assign 4 distinct lab administrators | Each admin can log in and view only their assigned lab. |
-| **TC-03** | Unauthorized lab admin access | Lab Admin 1 cannot view or modify Lab 2's uploads. |
-| **TC-04** | Upload invalid file (missing scores/IDs) | System identifies invalid rows with line numbers and blocks submission. |
-| **TC-05** | Upload duplicate participant IDs in lab | Validation engine flags duplicate records for correction. |
-| **TC-06** | Lab Admin submits valid file | Status changes to `Pending Approval`; appears in admin monitoring matrix. |
-| **TC-07** | Admin rejects lab submission | Rejection note sent to lab admin; status resets to `Awaiting Upload`. |
-| **TC-08** | All 4 labs upload valid files | Competition Admin can approve all 4 submissions. |
-| **TC-09** | Consolidation of 120 records (4 labs) | Consolidates into exactly 120 unique records with correct tie-breaking. |
-| **TC-10** | Set Top-K = 10 | Ranks 1–10 receive qualification status indicator. |
-| **TC-11** | Publish leaderboard | Shared URL becomes active; all 4 lab screens see identical rankings. |
-| **TC-12** | Export published leaderboard | Downloaded CSV/Excel matches onscreen rankings and scores precisely. |
-| **TC-13** | Republish correction | Generates version `v2.0`; version `v1.0` remains intact in audit history. |
+| **TC-01** | Create competition with dynamic contest sets | Super Admin creates competition and sets up Sets A, B, C, D; slots initialized. |
+| **TC-02** | Provision user accounts | Super Admin provisions Master Lab Admin, HOD, and Principal accounts successfully. |
+| **TC-03** | Asynchronous upload order | Master Lab Admin uploads Set C first, then Set A; both ingest independently without errors. |
+| **TC-04** | Invalid file upload (missing scores/IDs) | System identifies invalid rows with line numbers and marks validation as `INVALID`. |
+| **TC-05** | Internal duplicate participant detection | Validation engine flags duplicate candidate IDs within the same set file. |
+| **TC-06** | Cross-set duplicate participant detection | System detects identical candidate ID uploaded in both Set A and Set B, alerting admin. |
+| **TC-07** | Super Admin approval gate | Super Admin reviews validation report and approves Set A; status changes to `APPROVED`. |
+| **TC-08** | Super Admin rejection gate | Super Admin rejects flawed upload with comments; Master Lab Admin prompted to re-upload. |
+| **TC-09** | Re-upload versioning | Re-uploading creates version `v2`, resets approval status, and retains previous version in history. |
+| **TC-10** | Incomplete sets consolidation block | Consolidation trigger remains disabled when 3 of 4 sets are approved. |
+| **TC-11** | Consolidation of all approved sets | Merges records from all sets into one dataset preserving set codes and source upload IDs. |
+| **TC-12** | Lexicographical ranking engine | Ties broken in exact configured priority order (Score &rarr; Solved &rarr; Penalty &rarr; Time). |
+| **TC-13** | Shared rank assignment | Two contestants tied on all criteria receive identical rank (e.g. Rank 1, 1, 3). |
+| **TC-14** | Top-K qualification and boundary tie | Highlights Top-K contestants; alerts Super Admin if ties occur at the qualification threshold. |
+| **TC-15** | Leaderboard publication | Super Admin clicks publish; generates immutable snapshot `v1.0` and activates `/leaderboard`. |
+| **TC-16** | Export published leaderboard | Downloaded CSV/Excel matches onscreen rankings, scores, and qualification statuses. |
+| **TC-17** | Principal and HOD monitoring view | Both log in, view live competition metrics, set-wise leaderboards, and unified standings. |
+| **TC-18** | Institutional read-only enforcement | Principal or HOD attempting to POST to `/api/sets/:id/uploads` receives HTTP 403 Forbidden. |
