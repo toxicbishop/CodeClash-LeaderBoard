@@ -495,6 +495,28 @@ CREATE POLICY "audit_log: authenticated inserts"
   WITH CHECK (auth.uid() IS NOT NULL);
 
 
+-- ---------------------------------------------------------------------------
+-- STORAGE: leaderboard-uploads
+-- Private raw-file archive for lab leaderboard submissions (.csv, .xlsx).
+-- ---------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'leaderboard-uploads',
+  'leaderboard-uploads',
+  false,
+  5242880,
+  ARRAY['text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/octet-stream', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+)
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 5242880;
+
+CREATE POLICY "leaderboard archive: admins can read"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'leaderboard-uploads'
+    AND public.current_user_role() = 'COMPETITION_ADMIN'
+  );
+
+
 -- =============================================================================
 -- SEED: Default Competition Admin
 -- =============================================================================
