@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
-import { LeaderboardControlPanel } from './LeaderboardControlPanel';
+import { LeaderboardControlPanel, Snapshot } from './LeaderboardControlPanel';
 
 export const instant = false;
 
@@ -162,7 +162,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
           <LeaderboardControlPanel
             competitionId={competitionId}
             competitionSlug={competition.slug}
-            snapshots={(snapshots as any) || []}
+            snapshots={(snapshots as unknown as Snapshot[]) || []}
             hasApprovedUploads={hasApprovedUploads}
           />
         </div>
