@@ -193,3 +193,464 @@ export async function createLab(
   revalidatePath('/admin');
   return { success: true, data };
 }
+
+/**
+ * 4. Approve a lab upload submission
+ */
+export async function approveUpload(
+  prevState: ActionResponse,
+  formData: FormData
+): Promise<ActionResponse> {
+  const admin = await getCompetitionAdmin();
+  if (!admin) return permissionError;
+  const { user } = admin;
+
+  const upload_id = formData.get('upload_id') as string;
+  const competition_id = formData.get('competition_id') as string;
+
+  if (!upload_id) {
+    return { error: 'Upload ID is required.' };
+  }
+
+  const adminClient = createAdminClient();
+
+  const { error } = await adminClient
+    .from('uploads')
+    .update({
+      status: 'APPROVED',
+      approved_by: user.id,
+      approved_at: new Date().toISOString(),
+      rejection_reason: null,
+    })
+    .eq('upload_id', upload_id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await adminClient.from('audit_log').insert({
+    actor_id: user.id,
+    action: 'UPLOAD_APPROVED',
+    entity_type: 'upload',
+    entity_id: upload_id,
+    metadata: { competition_id },
+  });
+
+  if (competition_id) {
+    revalidatePath(`/admin/competitions/${competition_id}`);
+  }
+  revalidatePath('/admin/competitions');
+  revalidatePath('/admin');
+  return { success: true };
+}
+
+/**
+ * 5. Reject a lab upload submission with a mandatory reason
+ */
+export async function rejectUpload(
+  prevState: ActionResponse,
+  formData: FormData
+): Promise<ActionResponse> {
+  const admin = await getCompetitionAdmin();
+  if (!admin) return permissionError;
+  const { user } = admin;
+
+  const upload_id = formData.get('upload_id') as string;
+  const competition_id = formData.get('competition_id') as string;
+  const rejection_reason = (formData.get('rejection_reason') as string)?.trim();
+
+  if (!upload_id) {
+    return { error: 'Upload ID is required.' };
+  }
+  if (!rejection_reason) {
+    return { error: 'Please provide a reason for rejecting this submission.' };
+  }
+
+  const adminClient = createAdminClient();
+
+  const { error } = await adminClient
+    .from('uploads')
+    .update({
+      status: 'REJECTED',
+      rejection_reason,
+      approved_by: null,
+      approved_at: null,
+    })
+    .eq('upload_id', upload_id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await adminClient.from('audit_log').insert({
+    actor_id: user.id,
+    action: 'UPLOAD_REJECTED',
+    entity_type: 'upload',
+    entity_id: upload_id,
+    metadata: { competition_id, rejection_reason },
+  });
+
+  if (competition_id) {
+    revalidatePath(`/admin/competitions/${competition_id}`);
+  }
+  revalidatePath('/admin/competitions');
+  revalidatePath('/admin');
+  return { success: true };
+}
+
+/**
+ * 6. Consolidate approved lab records and generate a DRAFT Leaderboard Snapshot
+ */
+export async function consolidateLeaderboard(
+  prevState: ActionResponse,
+  formData: FormData
+): Promise<ActionResponse> {
+  const admin = await getCompetitionAdmin();
+  if (!admin) return permissionError;
+  const { user } = admin;
+
+  const competition_id = formData.get('competition_id') as string;
+  if (!competition_id) {
+    return { error: 'Competition ID is required.' };
+  }
+
+  const adminClient = createAdminClient();
+
+  // Fetch competition details
+  const { data: comp, error: compErr } = await adminClient
+    .from('competitions')
+    .select('*')
+    .eq('competition_id', competition_id)
+    .single();
+
+  if (compErr || !comp) {
+    return { error: 'Competition not found.' };
+  }
+
+  // Fetch all active labs
+  const { data: labs, error: labsErr } = await adminClient
+    .from('labs')
+    .select('lab_id, lab_name')
+    .eq('competition_id', competition_id)
+    .eq('status', 'ACTIVE');
+
+  if (labsErr || !labs || labs.length === 0) {
+    return { error: 'No active labs found for this competition.' };
+  }
+
+  // Fetch approved uploads for each lab
+  const labIds = labs.map((l) => l.lab_id);
+  const { data: approvedUploads, error: uploadsErr } = await adminClient
+    .from('uploads')
+    .select('upload_id, lab_id, status')
+    .eq('competition_id', competition_id)
+    .in('lab_id', labIds)
+    .eq('status', 'APPROVED');
+
+  if (uploadsErr) return { error: uploadsErr.message };
+
+  const approvedLabIds = new Set(approvedUploads?.map((u) => u.lab_id) || []);
+  const unapprovedLabs = labs.filter((l) => !approvedLabIds.has(l.lab_id));
+
+  if (unapprovedLabs.length > 0) {
+    return {
+      error: `Cannot consolidate: ${unapprovedLabs.length} lab(s) [${unapprovedLabs
+        .map((l) => l.lab_name)
+        .join(', ')}] do not have an approved submission.`,
+    };
+  }
+
+  const approvedUploadIds = (approvedUploads || []).map((u) => u.upload_id);
+
+  // Fetch all results from approved uploads
+  const { data: results, error: resultsErr } = await adminClient
+    .from('results')
+    .select('result_id, total_score, problems_solved, penalty, final_submission_time, lab_id, participant_id')
+    .in('upload_id', approvedUploadIds);
+
+  if (resultsErr) return { error: resultsErr.message };
+  if (!results || results.length === 0) {
+    return { error: 'No participant records found in approved uploads.' };
+  }
+
+  // Tie-breaking & ranking logic
+  // 1. total_score descending
+  // 2. problems_solved descending
+  // 3. penalty ascending (nulls last)
+  // 4. final_submission_time ascending (nulls last)
+  const sorted = [...results].sort((a, b) => {
+    if (b.total_score !== a.total_score) {
+      return Number(b.total_score) - Number(a.total_score);
+    }
+    if (b.problems_solved !== a.problems_solved) {
+      return b.problems_solved - a.problems_solved;
+    }
+    const penA = a.penalty !== null ? Number(a.penalty) : Infinity;
+    const penB = b.penalty !== null ? Number(b.penalty) : Infinity;
+    if (penA !== penB) {
+      return penA - penB;
+    }
+    if (a.final_submission_time && b.final_submission_time) {
+      return new Date(a.final_submission_time).getTime() - new Date(b.final_submission_time).getTime();
+    }
+    return 0;
+  });
+
+  // Calculate shared ranks
+  const topK = comp.top_k || 10;
+  const boundaryPolicy = comp.scoring_config?.boundary_policy || 'ADMIT_ALL';
+
+  type RankedItem = (typeof sorted)[number] & {
+    rank: number;
+    is_qualified: boolean;
+  };
+
+  const ranked: RankedItem[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const current = sorted[i];
+    let rank = i + 1;
+
+    if (i > 0) {
+      const prev = sorted[i - 1];
+      const sameScore = Number(current.total_score) === Number(prev.total_score);
+      const sameSolved = current.problems_solved === prev.problems_solved;
+      const samePenalty = current.penalty === prev.penalty;
+      if (sameScore && sameSolved && samePenalty) {
+        rank = ranked[i - 1].rank;
+      }
+    }
+
+    let is_qualified = false;
+    if (boundaryPolicy === 'ADMIT_ALL') {
+      is_qualified = rank <= topK;
+    } else {
+      is_qualified = i < topK;
+    }
+
+    ranked.push({
+      ...current,
+      rank,
+      is_qualified,
+    });
+  }
+
+  // Manage leaderboard snapshot
+  // If an existing DRAFT snapshot exists, clean out its entries
+  const { data: existingDraft } = await adminClient
+    .from('leaderboard_snapshots')
+    .select('leaderboard_id, version')
+    .eq('competition_id', competition_id)
+    .eq('status', 'DRAFT')
+    .maybeSingle();
+
+  let targetSnapshotId = existingDraft?.leaderboard_id;
+
+  if (targetSnapshotId) {
+    // Delete old entries
+    await adminClient
+      .from('leaderboard_entries')
+      .delete()
+      .eq('leaderboard_id', targetSnapshotId);
+
+    // Update snapshot generated_at
+    await adminClient
+      .from('leaderboard_snapshots')
+      .update({ generated_at: new Date().toISOString() })
+      .eq('leaderboard_id', targetSnapshotId);
+  } else {
+    // Determine new version
+    const { data: allSnapshots } = await adminClient
+      .from('leaderboard_snapshots')
+      .select('version')
+      .eq('competition_id', competition_id);
+
+    const maxVersion = allSnapshots && allSnapshots.length > 0
+      ? Math.max(...allSnapshots.map((s) => s.version))
+      : 0;
+
+    const { data: newSnapshot, error: snapErr } = await adminClient
+      .from('leaderboard_snapshots')
+      .insert({
+        competition_id,
+        version: maxVersion + 1,
+        status: 'DRAFT',
+        generated_at: new Date().toISOString(),
+      })
+      .select('leaderboard_id')
+      .single();
+
+    if (snapErr || !newSnapshot) {
+      return { error: snapErr?.message || 'Failed to create leaderboard snapshot.' };
+    }
+    targetSnapshotId = newSnapshot.leaderboard_id;
+  }
+
+  // Insert all leaderboard entries
+  const entriesToInsert = ranked.map((r) => ({
+    leaderboard_id: targetSnapshotId!,
+    participant_id: r.participant_id,
+    lab_id: r.lab_id,
+    overall_rank: r.rank,
+    total_score: r.total_score,
+    problems_solved: r.problems_solved,
+    penalty: r.penalty,
+    is_qualified: r.is_qualified,
+  }));
+
+  const { error: entriesErr } = await adminClient
+    .from('leaderboard_entries')
+    .insert(entriesToInsert);
+
+  if (entriesErr) {
+    return { error: entriesErr.message };
+  }
+
+  // Transition competition status to READY_FOR_REVIEW
+  await adminClient
+    .from('competitions')
+    .update({ status: 'READY_FOR_REVIEW' })
+    .eq('competition_id', competition_id);
+
+  await adminClient.from('audit_log').insert({
+    actor_id: user.id,
+    action: 'LEADERBOARD_CONSOLIDATED',
+    entity_type: 'leaderboard_snapshot',
+    entity_id: targetSnapshotId!,
+    metadata: {
+      competition_id,
+      total_entries: entriesToInsert.length,
+      top_k: topK,
+    },
+  });
+
+  revalidatePath(`/admin/competitions/${competition_id}`);
+  revalidatePath('/admin/competitions');
+  revalidatePath('/admin');
+  revalidatePath('/leaderboard');
+  revalidatePath(`/competitions/${comp.slug}/leaderboard`);
+  return { success: true, data: { count: entriesToInsert.length } };
+}
+
+/**
+ * 7. Publish the official leaderboard snapshot
+ */
+export async function publishLeaderboard(
+  prevState: ActionResponse,
+  formData: FormData
+): Promise<ActionResponse> {
+  const admin = await getCompetitionAdmin();
+  if (!admin) return permissionError;
+  const { user } = admin;
+
+  const competition_id = formData.get('competition_id') as string;
+  if (!competition_id) {
+    return { error: 'Competition ID is required.' };
+  }
+
+  const adminClient = createAdminClient();
+
+  const { data: comp } = await adminClient
+    .from('competitions')
+    .select('slug, competition_name')
+    .eq('competition_id', competition_id)
+    .single();
+
+  if (!comp) return { error: 'Competition not found.' };
+
+  // Find latest DRAFT snapshot
+  const { data: draftSnapshot, error: draftErr } = await adminClient
+    .from('leaderboard_snapshots')
+    .select('leaderboard_id, version')
+    .eq('competition_id', competition_id)
+    .eq('status', 'DRAFT')
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (draftErr || !draftSnapshot) {
+    return { error: 'No draft leaderboard snapshot found. Consolidate results first.' };
+  }
+
+  // Supersede any previously published snapshot
+  await adminClient
+    .from('leaderboard_snapshots')
+    .update({ status: 'SUPERSEDED' })
+    .eq('competition_id', competition_id)
+    .eq('status', 'PUBLISHED');
+
+  // Mark this snapshot as PUBLISHED
+  const { error: pubErr } = await adminClient
+    .from('leaderboard_snapshots')
+    .update({
+      status: 'PUBLISHED',
+      published_at: new Date().toISOString(),
+      published_by: user.id,
+    })
+    .eq('leaderboard_id', draftSnapshot.leaderboard_id);
+
+  if (pubErr) return { error: pubErr.message };
+
+  // Set competition status to PUBLISHED
+  await adminClient
+    .from('competitions')
+    .update({ status: 'PUBLISHED' })
+    .eq('competition_id', competition_id);
+
+  await adminClient.from('audit_log').insert({
+    actor_id: user.id,
+    action: 'LEADERBOARD_PUBLISHED',
+    entity_type: 'leaderboard_snapshot',
+    entity_id: draftSnapshot.leaderboard_id,
+    metadata: {
+      competition_id,
+      version: draftSnapshot.version,
+    },
+  });
+
+  revalidatePath(`/admin/competitions/${competition_id}`);
+  revalidatePath('/admin/competitions');
+  revalidatePath('/admin');
+  revalidatePath('/leaderboard');
+  revalidatePath(`/competitions/${comp.slug}/leaderboard`);
+  return { success: true, data: { version: draftSnapshot.version } };
+}
+
+/**
+ * 8. Fetch upload review details (upload metadata, sample records, validation issues)
+ */
+export async function getUploadReviewData(uploadId: string) {
+  const admin = await getCompetitionAdmin();
+  if (!admin) return { error: 'An active competition administrator account is required.' };
+
+  const adminClient = createAdminClient();
+
+  const { data: upload, error: uploadErr } = await adminClient
+    .from('uploads')
+    .select('*, labs(lab_id, lab_name), users!uploads_uploaded_by_fkey(name, email)')
+    .eq('upload_id', uploadId)
+    .single();
+
+  if (uploadErr || !upload) return { error: 'Upload submission not found.' };
+
+  const { data: results } = await adminClient
+    .from('results')
+    .select('result_id, total_score, problems_solved, penalty, participants(participant_id, external_participant_id, participant_name)')
+    .eq('upload_id', uploadId)
+    .order('total_score', { ascending: false })
+    .limit(50);
+
+  const { data: issues } = await adminClient
+    .from('validation_issues')
+    .select('*')
+    .eq('upload_id', uploadId)
+    .order('row_number', { ascending: true });
+
+  return {
+    success: true,
+    data: {
+      upload,
+      results: results || [],
+      issues: issues || [],
+    },
+  };
+}
