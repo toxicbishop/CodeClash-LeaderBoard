@@ -1,34 +1,12 @@
-import { redirect } from 'next/navigation';
-import { connection } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { logout } from '@/app/login/actions';
 import LeaderboardPreview from './LeaderboardPreview';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { requireLabAdmin } from '@/lib/auth/guards';
 
 export const instant = false;
 
 export default async function LabAdminDashboardPage() {
-  await connection();
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/');
-  }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('account_status', 'ACTIVE')
-    .single();
-
-  if (profile?.role !== 'LAB_ADMIN' && profile?.role !== 'COMPETITION_ADMIN') {
-    redirect('/');
-  }
+  const { user, profile, supabase } = await requireLabAdmin();
 
   // Fetch lab assigned to this admin (with parent competition info)
   const { data: assignedLab } = await supabase
