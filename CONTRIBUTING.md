@@ -48,8 +48,9 @@ Feel free to mention or reach out to any team member for questions or review fee
    ```
 
 3. **Start local Supabase services:**
+   Ensure Docker Desktop is running, then launch the local Supabase stack:
    ```bash
-   supabase start
+   npx supabase start
    ```
 
 4. **Environment configuration:**
@@ -64,8 +65,9 @@ Feel free to mention or reach out to any team member for questions or review fee
    ```
 
 6. **Start development server:**
+   Always use `pnpm run dev`:
    ```bash
-   pnpm dev
+   pnpm run dev
    ```
    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
