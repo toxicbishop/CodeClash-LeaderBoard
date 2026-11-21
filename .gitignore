@@ -43,6 +43,7 @@ yarn-error.log*
 .agents/
 .claude/
 .codex/
+.impeccable/
 skills-lock.json
 
 # typescript
