@@ -133,7 +133,7 @@ export function RulesEditor({ competitionId, initialRules }: RulesEditorProps) {
           }`}
         >
           <span>{message.text}</span>
-          <button onClick={() => setMessage(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+          <button onClick={() => setMessage(null)} className="text-zinc-400 hover:text-zinc-600 text-xs">Dismiss</button>
         </div>
       )}
 

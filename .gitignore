@@ -42,8 +42,13 @@ yarn-error.log*
 # Agents
 .agents/
 .claude/
+.codex/
+.impeccable/
 skills-lock.json
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# screenshots
+shots/

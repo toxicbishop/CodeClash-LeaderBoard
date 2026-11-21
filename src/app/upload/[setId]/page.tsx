@@ -130,7 +130,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
             {/* Collision Flags Warning */}
             {latest.collision_flags && latest.collision_flags.length > 0 && (
               <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
-                <span className="font-bold">⚠ Cross-Set Participant Collisions Detected:</span>
+                <span className="font-semibold">Notice: Cross-Set Participant Collisions Detected</span>
                 <ul className="list-disc pl-5 space-y-0.5 mt-1">
                   {latest.collision_flags.map((c: { external_id: string; conflicting_set_name: string }, i: number) => (
                     <li key={i}>

@@ -89,7 +89,7 @@ export default function SyncSetClient({ setId, defaultSlug }: SyncSetClientProps
         disabled={isLoading}
         className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
       >
-        {isLoading ? 'Syncing with HackerRank API...' : '⚡ Trigger Live HackerRank Sync'}
+        {isLoading ? 'Syncing with HackerRank API...' : 'Trigger HackerRank sync'}
       </button>
     </form>
   );

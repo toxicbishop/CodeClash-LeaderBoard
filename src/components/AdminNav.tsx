@@ -11,17 +11,18 @@ export function AdminNav({ currentPath, adminName }: AdminNavProps) {
     <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link href="/admin" className="flex items-center space-x-2">
-              <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+          <div className="flex items-center gap-8">
+            <Link href="/admin" className="flex items-center gap-2">
+              <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-50">
                 Code Clash
               </span>
-              <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+              <span className="text-zinc-300 dark:text-zinc-700">/</span>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
                 Admin Console
               </span>
             </Link>
 
-            <nav className="flex space-x-4">
+            <nav className="flex gap-4">
               <Link
                 href="/admin"
                 className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
@@ -55,7 +56,7 @@ export function AdminNav({ currentPath, adminName }: AdminNavProps) {
             </nav>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4">
             {adminName && (
               <span className="text-sm text-zinc-500 dark:text-zinc-400 hidden sm:inline">
                 {adminName}
@@ -64,7 +65,7 @@ export function AdminNav({ currentPath, adminName }: AdminNavProps) {
             <form action={logout}>
               <button
                 type="submit"
-                className="px-3 py-1.5 text-xs font-medium rounded-lg text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                className="px-3 py-2 text-xs font-medium rounded-lg text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
               >
                 Sign out
               </button>
