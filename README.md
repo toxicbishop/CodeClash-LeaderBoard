@@ -31,16 +31,9 @@ Phase 2 provides end-to-end upload management and validation. Lab administrators
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    Organizer["Competition administrator"] --> Admin["Next.js admin pages and server actions"]
-    LabAdmin["Lab administrator"] --> Lab["Next.js lab dashboard"]
-    Admin --> Auth["Supabase Auth"]
-    Lab --> Auth
-    Admin --> DB[("Supabase PostgreSQL")]
-    Lab --> DB
-    Lab --> Preview["CSV and Excel preview in the browser"]
-```
+![System Architecture](public/System-Architecture.png)
+
+The system architecture diagram illustrates the end-to-end flow from user and administrator actions through Next.js server components, authentication, Supabase persistence, and live leaderboard ingestion.
 
 The app uses the Next.js App Router, React, TypeScript, and Tailwind CSS. The request proxy refreshes Supabase sessions, and protected pages load data through the server client. PostgreSQL migrations define the contest tables and row-level security policies. Papa Parse reads CSV files and read-excel-file reads Excel workbooks.
 
