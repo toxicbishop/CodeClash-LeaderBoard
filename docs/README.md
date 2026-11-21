@@ -20,6 +20,7 @@ Additionally, Version 2.0 introduces dedicated, read-only monitoring dashboards 
 | [Workflows](./workflows.md) | End-to-end 11-step operational workflow, contest-set uploads, validation reports, approval gates, consolidation, and publication |
 | [Tech Stack and Architecture](./tech-stack.md) | Full-stack Next.js 16 + React 19 + TypeScript + Tailwind CSS + Prisma + PostgreSQL architecture, route tree, and REST API specification |
 | [Decisions and Delivery Plan](./decisions-and-delivery.md) | 5-phase delivery roadmap, formal architectural decisions register, and 18-point verification test matrix |
+| [Production Deployment Guide](./production-deployment-guide.md) | End-to-end production deployment runbook, hosted Supabase setup, Vercel configuration, and event-day operational schedule |
 | [Research References](./research-references.md) | Source specifications, reference implementations, scoring guidelines, and integration dependencies |
 
 ---
