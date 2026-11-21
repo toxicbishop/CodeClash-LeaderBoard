@@ -53,16 +53,6 @@ export function FatFooter({ currentCompetitionSlug }: FatFooterProps = {}) {
                   Contest overview
                 </Link>
               </li>
-              <li>
-                <span className="text-zinc-400 dark:text-zinc-600">
-                  Projector display
-                </span>
-              </li>
-              <li>
-                <span className="text-zinc-400 dark:text-zinc-600">
-                  Qualification cutoffs
-                </span>
-              </li>
             </ul>
           </div>
 
@@ -130,14 +120,20 @@ export function FatFooter({ currentCompetitionSlug }: FatFooterProps = {}) {
                 </Link>
               </li>
               <li>
-                <span className="text-zinc-400 dark:text-zinc-600">
+                <Link
+                  href="/fair-play"
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                >
                   Fair play rules
-                </span>
+                </Link>
               </li>
               <li>
-                <span className="text-zinc-400 dark:text-zinc-600">
+                <Link
+                  href="/tiebreakers"
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                >
                   Tiebreaking criteria
-                </span>
+                </Link>
               </li>
             </ul>
           </div>
