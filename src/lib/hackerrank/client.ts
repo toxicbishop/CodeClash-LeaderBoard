@@ -37,6 +37,20 @@ export class HackerRankError extends Error {
 }
 
 /**
+ * Strict regex for validating HackerRank contest slugs.
+ * HackerRank contest slugs only contain alphanumeric characters, hyphens, and underscores.
+ * Any other characters (e.g. '/', '.', '?', '#', '@') are disallowed to prevent SSRF and path traversal.
+ */
+export const HACKERRANK_SLUG_REGEX = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Validates whether a slug is safe and valid for HackerRank API requests.
+ */
+export function isValidContestSlug(slug: unknown): slug is string {
+  return typeof slug === 'string' && HACKERRANK_SLUG_REGEX.test(slug.trim());
+}
+
+/**
  * Fetch the full leaderboard for a HackerRank contest.
  *
  * @param slug           Contest slug, e.g. "codeclash-2026-setA"
@@ -46,6 +60,15 @@ export async function fetchContestLeaderboard(
   slug: string,
   sessionCookie?: string,
 ): Promise<HackerRankFetchResult> {
+  const trimmedSlug = (slug ?? '').trim();
+  if (!isValidContestSlug(trimmedSlug)) {
+    throw new HackerRankError(
+      `Invalid HackerRank contest slug: "${slug}". Slugs may only contain alphanumeric characters, hyphens, and underscores.`,
+      400,
+      slug,
+    );
+  }
+
   const headers: Record<string, string> = {
     'Accept': 'application/json',
     'User-Agent': 'CodeClash-Leaderboard/2.0',
@@ -60,7 +83,16 @@ export async function fetchContestLeaderboard(
 
   do {
     const offset = page * 100;
-    const url = `https://www.hackerrank.com/rest/contests/${slug}/leaderboard?offset=${offset}&limit=100`;
+    const safeSlug = encodeURIComponent(trimmedSlug);
+    const targetUrl = new URL(`/rest/contests/${safeSlug}/leaderboard`, 'https://www.hackerrank.com');
+    targetUrl.searchParams.set('offset', offset.toString());
+    targetUrl.searchParams.set('limit', '100');
+
+    if (targetUrl.hostname !== 'www.hackerrank.com' || targetUrl.protocol !== 'https:') {
+      throw new HackerRankError('Invalid URL destination', 400, trimmedSlug);
+    }
+
+    const url = targetUrl.toString();
 
     let res: Response;
     try {
@@ -71,31 +103,31 @@ export async function fetchContestLeaderboard(
       });
     } catch (err) {
       throw new HackerRankError(
-        `Network error fetching HackerRank leaderboard for "${slug}": ${String(err)}`,
+        `Network error fetching HackerRank leaderboard for "${trimmedSlug}": ${String(err)}`,
         undefined,
-        slug,
+        trimmedSlug,
       );
     }
 
     if (res.status === 404) {
       throw new HackerRankError(
-        `Contest not found on HackerRank. Check the slug: "${slug}"`,
+        `Contest not found on HackerRank. Check the slug: "${trimmedSlug}"`,
         404,
-        slug,
+        trimmedSlug,
       );
     }
     if (res.status === 401 || res.status === 403) {
       throw new HackerRankError(
-        `Access denied for contest "${slug}". This contest may be private — provide a session cookie.`,
+        `Access denied for contest "${trimmedSlug}". This contest may be private — provide a session cookie.`,
         res.status,
-        slug,
+        trimmedSlug,
       );
     }
     if (!res.ok) {
       throw new HackerRankError(
-        `HackerRank returned HTTP ${res.status} for contest "${slug}"`,
+        `HackerRank returned HTTP ${res.status} for contest "${trimmedSlug}"`,
         res.status,
-        slug,
+        trimmedSlug,
       );
     }
 
@@ -110,5 +142,5 @@ export async function fetchContestLeaderboard(
 
   } while (allEntries.length < total && page < 50); // 50 pages max = 5000 participants
 
-  return { entries: allEntries, total, slug };
+  return { entries: allEntries, total, slug: trimmedSlug };
 }
