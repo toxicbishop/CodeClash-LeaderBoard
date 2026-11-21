@@ -61,6 +61,8 @@ export default function SyncSetClient({ setId, defaultSlug }: SyncSetClientProps
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
           required
+          pattern="[a-zA-Z0-9_-]+"
+          title="Slugs may only contain letters, numbers, hyphens, and underscores."
           className="mt-1.5 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           placeholder="e.g. codeclash-2026-setA"
         />

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/server';
-import { fetchContestLeaderboard, HackerRankError } from '@/lib/hackerrank/client';
+import { fetchContestLeaderboard, HackerRankError, isValidContestSlug } from '@/lib/hackerrank/client';
 import { validateHackerRankEntries } from '@/lib/hackerrank/validate';
 
 export type SyncResponse = {
@@ -31,7 +31,13 @@ export async function syncContestSetFromHackerRank(
     return { error: 'Contest set not found.' };
   }
 
-  const slug = (overrideSlug?.trim() || set.hackerrank_slug).trim();
+  const rawSlug = (overrideSlug?.trim() || set.hackerrank_slug || '').trim();
+  if (!isValidContestSlug(rawSlug)) {
+    return {
+      error: `Invalid HackerRank contest slug: "${rawSlug}". Slugs must contain only alphanumeric characters, hyphens, and underscores.`,
+    };
+  }
+  const slug = rawSlug;
   const cookie = sessionCookie?.trim() || set.hr_session_cookie || undefined;
 
   // 2. Fetch from HackerRank

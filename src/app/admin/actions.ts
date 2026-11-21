@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { computeRankings } from '@/lib/ranking/engine';
+import { isValidContestSlug } from '@/lib/hackerrank/client';
 import type { TieBreakerRule } from '@/types/database';
 
 export type ActionResponse = {
@@ -77,11 +78,16 @@ export async function createContestSet(formData: FormData): Promise<void> {
     throw new Error('Competition ID, set name, set code, and HackerRank slug are all required.');
   }
 
+  const trimmedSlug = hackerrankSlug.trim();
+  if (!isValidContestSlug(trimmedSlug)) {
+    throw new Error('Invalid HackerRank slug. Slugs may only contain alphanumeric characters, hyphens, and underscores.');
+  }
+
   const { error } = await supabase.from('contest_sets').insert({
     competition_id: competitionId,
     set_name: setName.trim(),
     set_code: setCode.trim().toLowerCase(),
-    hackerrank_slug: hackerrankSlug.trim(),
+    hackerrank_slug: trimmedSlug,
   });
 
   if (error) throw new Error(error.message);
