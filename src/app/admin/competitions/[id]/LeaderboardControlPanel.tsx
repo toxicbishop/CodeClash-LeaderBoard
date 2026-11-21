@@ -67,26 +67,26 @@ export function LeaderboardControlPanel({
     <div className="space-y-6">
       {/* Alert banners */}
       {errorMsg && (
-        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400 text-xs font-semibold flex justify-between items-center">
+        <div className="p-4 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400 text-xs font-medium flex justify-between items-center">
           <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+          <button onClick={() => setErrorMsg(null)} className="text-zinc-400 hover:text-zinc-600 text-xs">Dismiss</button>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-semibold flex justify-between items-center">
+        <div className="p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-medium flex justify-between items-center">
           <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+          <button onClick={() => setSuccessMsg(null)} className="text-zinc-400 hover:text-zinc-600 text-xs">Dismiss</button>
         </div>
       )}
 
       {/* Control Actions Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
             Leaderboard Snapshots & Official Publishing
           </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">
+          <p className="text-xs text-zinc-500 mt-1">
             Consolidate verified contest sets, resolve ties using approved rules, and release official standings.
           </p>
         </div>
@@ -94,27 +94,27 @@ export function LeaderboardControlPanel({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/admin/competitions/${competitionId}/rules`}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            ⚙ Configure Tie-Breakers
+            Configure tiebreakers
           </Link>
 
           <Link
             href={`/leaderboard?comp=${competitionSlug}`}
             target="_blank"
-            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+            className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            ↗ Public View
+            Public leaderboard &rarr;
           </Link>
 
           <button
             type="button"
             disabled={isPending || !hasApprovedUploads}
             onClick={handleGenerate}
-            className="px-4 py-1.5 text-xs font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+            className="px-4 py-2 text-xs font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors cursor-pointer"
             title={!hasApprovedUploads ? 'At least one set upload must be APPROVED before generating' : ''}
           >
-            {isPending ? 'Processing...' : '⚡ Generate New Snapshot'}
+            {isPending ? 'Processing...' : 'Generate snapshot'}
           </button>
         </div>
       </div>

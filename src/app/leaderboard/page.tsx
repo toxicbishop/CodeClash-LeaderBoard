@@ -30,7 +30,7 @@ interface RawEntry {
 
 export const metadata = {
   title: 'Live Leaderboard | Code Clash 2026',
-  description: 'Official live standings and Top-K qualifiers for Code Clash 2026',
+  description: 'Consolidated standings and Top-K qualifiers for Code Clash 2026',
 };
 
 export const instant = false;
@@ -74,19 +74,22 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col justify-between">
         <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 h-16 flex items-center px-4 sm:px-8">
-          <Link href="/" className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+          <Link href="/" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400">
             Code Clash 2026
           </Link>
         </header>
 
         <main className="max-w-md mx-auto p-8 text-center">
-          <div className="text-4xl mb-4">⏱</div>
-          <h1 className="text-xl font-bold">No Active Competition</h1>
+          <svg className="size-8 mx-auto text-zinc-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          <h1 className="text-xl font-medium">No active competition</h1>
           <p className="text-xs text-zinc-500 mt-2">
             There are currently no active competitions scheduled. Please check back later.
           </p>
-          <Link href="/" className="mt-4 inline-block text-xs text-indigo-600 hover:underline">
-            ← Return to Homepage
+          <Link href="/" className="mt-4 inline-block text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+            &larr; Return to homepage
           </Link>
         </main>
 
@@ -106,7 +109,6 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
 
   let currentSnapshot = publishedSnapshots && publishedSnapshots.length > 0 ? publishedSnapshots[0] : null;
 
-  // Fallback to latest DRAFT if no published snapshot yet exists
   if (!currentSnapshot) {
     const { data: latestSnapshots } = await adminClient
       .from('leaderboard_snapshots')
@@ -174,109 +176,56 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     }
   }
 
-  const highScore = rowItems.length > 0 ? Math.max(...rowItems.map((r) => r.total_score)) : 0;
-  const qualifiedCount = rowItems.filter((r) => r.qualification_status === 'QUALIFIED').length;
   const isDraft = currentSnapshot?.status === 'DRAFT';
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 selection:bg-indigo-500 selection:text-white">
-      {/* Contestant Clean Header */}
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
+      {/* Clean Header */}
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-3">
               <Link
                 href="/"
-                className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
+                className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400"
               >
-                <span>Code Clash 2026</span>
+                Code Clash 2026
               </Link>
-              <span className="text-zinc-400">/</span>
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate max-w-xs sm:max-w-md">
+              <span className="text-zinc-300 dark:text-zinc-700">/</span>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400 truncate max-w-xs sm:max-w-md">
                 Official Leaderboard
               </span>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />
-                Live Standings
-              </span>
+            <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              <span className="size-2 rounded-sm bg-emerald-600" />
+              <span>Live standings</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-        {/* Contest Header Banner */}
-        <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 sm:p-10 shadow-sm relative overflow-hidden mb-8">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-indigo-500/10 via-purple-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 relative z-10">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Contest Header */}
+        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-8 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
             <div>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                  {activeComp.competition_name}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-                  {new Date(activeComp.contest_date).toLocaleDateString(undefined, {
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
-              </div>
-
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
-                Contest Standings
+              <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-zinc-900 dark:text-zinc-50">
+                {activeComp.competition_name} Standings
               </h1>
-
-              {activeComp.description && (
-                <p className="mt-2 text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-2xl">
-                  {activeComp.description}
-                </p>
-              )}
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-3xl">
+                {activeComp.description || 'Consolidated rankings across all contest sets with automated tiebreaker resolution and qualifier cutoff evaluation.'}
+              </p>
             </div>
 
-            {/* Key Contest Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
-              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Contestants
-                </span>
-                <div className="text-2xl font-black tabular-nums text-zinc-900 dark:text-zinc-100 mt-1">
-                  {rowItems.length}
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Contest Sets
-                </span>
-                <div className="text-2xl font-black tabular-nums text-zinc-900 dark:text-zinc-100 mt-1">
-                  {contestSets.length}
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  High Score
-                </span>
-                <div className="text-2xl font-black tabular-nums text-zinc-900 dark:text-zinc-100 mt-1">
-                  {highScore}
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Top Qualifiers
-                </span>
-                <div className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400 mt-1">
-                  Top {activeComp.top_k} ({qualifiedCount})
-                </div>
-              </div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono whitespace-nowrap">
+              {new Date(activeComp.contest_date).toLocaleDateString(undefined, {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })} &bull; Top {activeComp.top_k} Qualifiers
             </div>
           </div>
         </div>
@@ -293,16 +242,16 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
             lastUpdated={currentSnapshot.published_at || currentSnapshot.generated_at}
           />
         ) : (
-          <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 sm:p-16 text-center shadow-sm">
-            <div className="inline-flex p-4 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mb-4 text-3xl">
-              ⏱
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              Results Under Evaluation
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 sm:p-16 text-center">
+            <svg className="size-8 mx-auto text-zinc-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+            <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
+              Results under evaluation
             </h2>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
-              Contest submissions are currently being verified across participating contest sets.
-              Official rankings will appear on this screen as soon as they are finalized.
+            <p className="mt-2 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
+              Contest submissions are currently being verified across participating contest sets. Official rankings will appear here once verified.
             </p>
           </div>
         )}

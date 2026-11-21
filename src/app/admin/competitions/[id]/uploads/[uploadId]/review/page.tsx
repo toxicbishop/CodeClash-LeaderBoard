@@ -70,7 +70,7 @@ export default async function UploadReviewPage({ params }: PageProps) {
           {/* Collisions Warning if present */}
           {upload.collision_flags && upload.collision_flags.length > 0 && (
             <div className="mt-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
-              <span className="font-bold">⚠ {upload.collision_flags.length} Cross-Set Participant Collisions:</span>
+              <span className="font-semibold">{upload.collision_flags.length} Cross-Set Participant Collisions:</span>
               <p className="mt-0.5 text-zinc-600 dark:text-zinc-300">
                 These usernames appear in more than one contest set. Please verify before approving.
               </p>

@@ -11,9 +11,9 @@ export function LoginForm() {
   const visibilityLabel = passwordVisible ? 'Hide password' : 'Show password';
 
   return (
-    <form action={formAction} className="login-form mt-8 space-y-6">
+    <form action={formAction} className="login-form space-y-4">
       {state.error && (
-        <div className="rounded-md bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-600 dark:text-red-400">
+        <div className="rounded-md bg-red-500/10 border border-red-500/20 p-4 text-xs text-red-600 dark:text-red-400">
           <p className="font-medium">{state.error}</p>
         </div>
       )}
@@ -22,7 +22,7 @@ export function LoginForm() {
         <div>
           <label
             htmlFor="email"
-            className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
+            className="block text-xs font-medium text-zinc-900 dark:text-zinc-100"
           >
             Username
           </label>
@@ -33,7 +33,7 @@ export function LoginForm() {
               type="text"
               autoComplete="username"
               required
-              className="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3.5 py-2.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors"
+              className="block w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
             />
           </div>
         </div>
@@ -41,7 +41,7 @@ export function LoginForm() {
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
+            className="block text-xs font-medium text-zinc-900 dark:text-zinc-100"
           >
             Password
           </label>
@@ -52,7 +52,7 @@ export function LoginForm() {
               type={passwordVisible ? 'text' : 'password'}
               autoComplete="current-password"
               required
-              className="block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-3.5 pr-12 py-2.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors [&::-ms-reveal]:hidden"
+              className="block w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-4 pr-12 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 [&::-ms-reveal]:hidden"
             />
             <button
               type="button"
@@ -60,9 +60,9 @@ export function LoginForm() {
               aria-controls="password"
               title={visibilityLabel}
               onClick={() => setPasswordVisible((visible) => !visible)}
-              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-zinc-500 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-zinc-400 dark:hover:text-zinc-100"
+              className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-5">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="size-4">
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
                 <circle cx="12" cy="12" r="3" />
                 {passwordVisible && <path d="m3 3 18 18" />}
@@ -72,13 +72,15 @@ export function LoginForm() {
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-      >
-        {isPending ? 'Signing in...' : 'Sign in'}
-      </button>
+      <div className="pt-2">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full h-11 flex items-center justify-center px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {isPending ? 'Signing in...' : 'Sign in'}
+        </button>
+      </div>
     </form>
   );
 }

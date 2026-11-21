@@ -71,7 +71,7 @@ export default function ReviewActionsClient({
               disabled={isLoading || currentStatus === 'APPROVED'}
               className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-sm"
             >
-              {isLoading ? 'Processing...' : '✓ Approve Upload'}
+              {isLoading ? 'Processing...' : 'Approve upload'}
             </button>
           </>
         ) : (

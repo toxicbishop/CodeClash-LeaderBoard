@@ -1,67 +1,79 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #09090b;
+  --surface: #ffffff;
+  --border: #e4e4e7;
+  --ease-taste: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: Consolas, "Courier New", monospace;
+  --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-mono), Consolas, "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #09090b;
+    --foreground: #f4f4f5;
+    --surface: #121215;
+    --border: #27272a;
   }
+}
+
+* {
+  border-color: var(--border);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, a, input, select {
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-taste);
 }
 
 .login-form {
   color-scheme: light dark;
 }
 
-/* Paint over the browser's autofill background using the sign-in field palette. */
+/* Paint over browser autofill background using solid flat styling */
 .login-form input:is(:autofill, :-webkit-autofill) {
-  box-shadow: inset 0 0 0 100px light-dark(white, var(--color-zinc-900));
-  -webkit-text-fill-color: light-dark(var(--color-zinc-900), var(--color-zinc-100));
-  caret-color: light-dark(var(--color-zinc-900), var(--color-zinc-100));
+  box-shadow: inset 0 0 0 100px light-dark(#ffffff, #18181b);
+  -webkit-text-fill-color: light-dark(#09090b, #f4f4f5);
+  caret-color: light-dark(#09090b, #f4f4f5);
 }
 
 .login-form input:is(:autofill, :-webkit-autofill):focus {
-  outline: 2px solid var(--color-indigo-500);
+  outline: 2px solid #4f46e5;
 }
 
-/* ==========================================================================
-   Projector View (Auditorium & Big-Screen Mode)
-   ========================================================================== */
+/* Auditorium / Projector Mode Styles */
 .projector-view table {
   font-size: 1.125rem;
   line-height: 1.75rem;
 }
 
 .projector-view table th {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
   font-size: 0.875rem;
 }
 
 .projector-view table td {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
 }
 
-/* ==========================================================================
-   Print / PDF Styles
-   ========================================================================== */
 @media print {
   header,
   button,
