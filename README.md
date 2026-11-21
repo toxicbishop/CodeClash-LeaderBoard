@@ -9,7 +9,7 @@
 ![ESLint](https://img.shields.io/badge/ESLint-4B32C3?logo=eslint&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Code Clash Leaderboard is a web app for running the Code Clash 2026 coding competition across multiple computer labs. Competition administrators set up contests, register labs, and assign lab administrators. The project is being built to let each lab submit its results and combine them into one shared leaderboard that identifies the top qualifiers.
+Code Clash Leaderboard is a centralized platform for managing multi-lab coding competitions, featuring live HackerRank API leaderboard syncing, automated data validation, unified cross-set ranking, and Top K participant selection. Competition administrators set up contests and contest sets, while administrators can fetch live results directly from HackerRank contests or upload spreadsheets to consolidate participants into one shared, real-time leaderboard.
 
 ## Screenshots
 
