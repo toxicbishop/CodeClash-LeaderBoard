@@ -145,16 +145,14 @@ export function FatFooter({ currentCompetitionSlug }: FatFooterProps = {}) {
             &copy; {currentYear} Code Clash Leaderboard System. All rights reserved.
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-zinc-200 hover:underline">
               Terms & conditions
             </Link>
-            <span>&bull;</span>
+            <span className="text-zinc-300 dark:text-zinc-700">&bull;</span>
             <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-zinc-200 hover:underline">
               Privacy policy
             </Link>
-            <span>&bull;</span>
-            <span>Scoring and rankings engine</span>
           </div>
         </div>
       </div>
