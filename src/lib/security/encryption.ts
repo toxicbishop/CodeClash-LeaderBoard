@@ -2,13 +2,14 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // 96 bits for GCM
+const AUTH_TAG_LENGTH = 16; // 128 bits for GCM auth tag
 
 function getDerivedKey(): Buffer {
   const secret =
     process.env.HR_COOKIE_ENCRYPTION_KEY ||
     process.env.ENCRYPTION_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    'code-clash-dev-secret-key-32-bytes-minimum!';
+    'development_fallback_encryption_key_for_local_testing_only';
   return createHash('sha256').update(secret).digest();
 }
 
@@ -55,7 +56,11 @@ export function decryptSecret(ciphertext: string): string {
   const authTag = Buffer.from(authTagHex, 'hex');
   const encrypted = Buffer.from(encryptedHex, 'hex');
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  if (authTag.length !== AUTH_TAG_LENGTH) {
+    throw new Error('Invalid authentication tag length');
+  }
+
+  const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
   decipher.setAuthTag(authTag);
 
   const decrypted = Buffer.concat([
