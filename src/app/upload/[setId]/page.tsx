@@ -15,7 +15,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
 
   const { data: set } = await supabase
     .from('contest_sets')
-    .select('*, competitions(*)')
+    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, created_at, updated_at, competitions(*)')
     .eq('set_id', setId)
     .single();
 
@@ -41,7 +41,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
             <span>← Back to Upload Portal</span>
           </Link>
           <span className="text-xs font-mono text-zinc-400">
-            {set.competitions?.competition_name} / {set.set_name}
+            {(Array.isArray(set.competitions) ? set.competitions[0] : set.competitions)?.competition_name} / {set.set_name}
           </span>
         </div>
       </header>

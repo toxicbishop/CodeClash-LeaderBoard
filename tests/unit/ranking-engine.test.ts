@@ -104,6 +104,42 @@ describe('computeRankings — Top-K qualification', () => {
     ], defaultRules, 10);
     expect(result.every(r => r.qualification_status === 'QUALIFIED')).toBe(true);
   });
+
+  it('regression: correctly qualifies when a tie skips the exact topK rank number', () => {
+    // topK = 3. Scores: 100, 90, 90, 80, 70 -> Ranks: 1, 2, 2, 4, 5
+    // Notice rank 3 does not exist.
+    const result = computeRankings([
+      makeP({ participant_id: 'P1', total_score: 100 }),
+      makeP({ participant_id: 'P2', total_score: 90 }),
+      makeP({ participant_id: 'P3', total_score: 90 }),
+      makeP({ participant_id: 'P4', total_score: 80 }),
+      makeP({ participant_id: 'P5', total_score: 70 }),
+    ], defaultRules, 3);
+
+    expect(result.find(r => r.participant_id === 'P1')!.qualification_status).toBe('QUALIFIED');
+    expect(result.find(r => r.participant_id === 'P2')!.qualification_status).toBe('QUALIFIED');
+    expect(result.find(r => r.participant_id === 'P3')!.qualification_status).toBe('QUALIFIED');
+    expect(result.find(r => r.participant_id === 'P4')!.qualification_status).toBe('NOT_QUALIFIED');
+    expect(result.find(r => r.participant_id === 'P5')!.qualification_status).toBe('NOT_QUALIFIED');
+  });
+
+  it('regression: marks tie group as BOUNDARY_REVIEW when tie at rank < topK straddles cutoff', () => {
+    // topK = 3. Scores: 100, 90, 90, 90, 70 -> Ranks: 1, 2, 2, 2, 5
+    // The tie at rank 2 has 3 people occupying positions 2, 3, 4 (straddles cutoff 3).
+    const result = computeRankings([
+      makeP({ participant_id: 'P1', total_score: 100 }),
+      makeP({ participant_id: 'P2', total_score: 90 }),
+      makeP({ participant_id: 'P3', total_score: 90 }),
+      makeP({ participant_id: 'P4', total_score: 90 }),
+      makeP({ participant_id: 'P5', total_score: 70 }),
+    ], defaultRules, 3);
+
+    expect(result.find(r => r.participant_id === 'P1')!.qualification_status).toBe('QUALIFIED');
+    expect(result.find(r => r.participant_id === 'P2')!.qualification_status).toBe('BOUNDARY_REVIEW');
+    expect(result.find(r => r.participant_id === 'P3')!.qualification_status).toBe('BOUNDARY_REVIEW');
+    expect(result.find(r => r.participant_id === 'P4')!.qualification_status).toBe('BOUNDARY_REVIEW');
+    expect(result.find(r => r.participant_id === 'P5')!.qualification_status).toBe('NOT_QUALIFIED');
+  });
 });
 
 describe('computeRankings — disabled rules', () => {

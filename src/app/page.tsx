@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { LoginForm } from './login/LoginForm';
 import { FatFooter } from '@/components/FatFooter';
@@ -14,24 +15,30 @@ export const instant = false;
 
 export default async function LoginPage() {
   await connection();
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const hasAuthToken = cookieStore.getAll().some((c) => c.name.includes('-auth-token'));
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle();
+  // Only check session if an auth cookie actually exists
+  if (hasAuthToken) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (profile?.role === 'SUPER_ADMIN' || profile?.role === 'COMPETITION_ADMIN') {
-      redirect('/admin');
-    } else if (profile?.role === 'MASTER_LAB_ADMIN' || profile?.role === 'LAB_ADMIN') {
-      redirect('/upload');
-    } else if (profile?.role === 'HOD' || profile?.role === 'PRINCIPAL') {
-      redirect('/monitor');
+    if (user) {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (profile?.role === 'SUPER_ADMIN' || profile?.role === 'COMPETITION_ADMIN') {
+        redirect('/admin');
+      } else if (profile?.role === 'MASTER_LAB_ADMIN' || profile?.role === 'LAB_ADMIN') {
+        redirect('/upload');
+      } else if (profile?.role === 'HOD' || profile?.role === 'PRINCIPAL') {
+        redirect('/monitor');
+      }
     }
   }
 
