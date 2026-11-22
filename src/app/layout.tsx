@@ -17,11 +17,11 @@ const monoFont = IBM_Plex_Mono({
   display: "swap",
 });
 
-const defaultUrl = process.env.NEXT_PUBLIC_APP_URL
-  ? process.env.NEXT_PUBLIC_APP_URL
-  : process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : 'http://localhost:3000';
+const defaultUrl =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'https://code-clash-leaderboard.vercel.app');
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
@@ -44,17 +44,19 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "/",
+    url: "https://code-clash-leaderboard.vercel.app",
     siteName: "Code Clash Leaderboard",
     title: "Code Clash Leaderboard — Centralized Competition Platform",
     description:
       "Real-time competition leaderboard featuring live HackerRank sync, multi-lab scoring, and Top-K qualifiers for Code Clash 2026.",
     images: [
       {
-        url: "/Dashboard.png",
+        url: "/Loginpage.png",
+        secureUrl: "https://code-clash-leaderboard.vercel.app/Loginpage.png",
         width: 1200,
         height: 630,
-        alt: "Code Clash Leaderboard Dashboard Preview",
+        type: "image/png",
+        alt: "Code Clash Leaderboard Sign In Preview",
       },
     ],
   },
@@ -63,7 +65,7 @@ export const metadata: Metadata = {
     title: "Code Clash Leaderboard — Centralized Competition Platform",
     description:
       "Real-time competition leaderboard featuring live HackerRank sync, multi-lab scoring, and Top-K qualifiers for Code Clash 2026.",
-    images: ["/Dashboard.png"],
+    images: ["https://code-clash-leaderboard.vercel.app/Loginpage.png"],
   },
 };
 
