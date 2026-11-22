@@ -6,6 +6,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { computeRankings } from '@/lib/ranking/engine';
 import { isValidContestSlug } from '@/lib/hackerrank/client';
+import { isValidUuid } from '@/lib/validation/uuid';
+import { isAllowedProvisionRole, validatePasswordPolicy, ALLOWED_PROVISION_ROLES } from '@/lib/security/password';
 import type { TieBreakerRule } from '@/types/database';
 
 export type ActionResponse = {
@@ -78,6 +80,10 @@ export async function createContestSet(formData: FormData): Promise<void> {
     throw new Error('Competition ID, set name, set code, and HackerRank slug are all required.');
   }
 
+  if (!isValidUuid(competitionId)) {
+    throw new Error('Invalid competition ID.');
+  }
+
   const trimmedSlug = hackerrankSlug.trim();
   if (!isValidContestSlug(trimmedSlug)) {
     throw new Error('Invalid HackerRank slug. Slugs may only contain alphanumeric characters, hyphens, and underscores.');
@@ -111,20 +117,53 @@ export async function createContestSet(formData: FormData): Promise<void> {
 export async function approveUpload(uploadId: string): Promise<ActionResponse> {
   const { supabase, user } = await requireSuperAdmin();
 
-  const { data: upload, error } = await supabase
+  if (!isValidUuid(uploadId)) {
+    return { error: 'Invalid upload ID.' };
+  }
+
+  // 1. Fetch current upload record and competition status
+  const { data: targetUpload, error: fetchErr } = await supabase
+    .from('uploads')
+    .select('upload_id, set_id, competition_id, status, competitions(status)')
+    .eq('upload_id', uploadId)
+    .maybeSingle();
+
+  if (fetchErr || !targetUpload) {
+    return { error: 'Upload not found.' };
+  }
+
+  const compStatus = (targetUpload.competitions as unknown as { status: string })?.status;
+  if (compStatus === 'PUBLISHED') {
+    return { error: 'Cannot approve uploads for a published competition.' };
+  }
+
+  if (targetUpload.status !== 'PENDING_APPROVAL') {
+    return {
+      error: `Only uploads in PENDING_APPROVAL status can be approved. Current status: ${targetUpload.status}`,
+    };
+  }
+
+  const adminClient = await createAdminClient();
+
+  // 2. Mark any previously approved upload for this set as SUPERSEDED
+  await adminClient
+    .from('uploads')
+    .update({ status: 'SUPERSEDED' })
+    .eq('set_id', targetUpload.set_id)
+    .eq('status', 'APPROVED');
+
+  // 3. Mark target upload as APPROVED
+  const { error: updateErr } = await adminClient
     .from('uploads')
     .update({
       status: 'APPROVED',
       approved_by: user.id,
       approved_at: new Date().toISOString(),
     })
-    .eq('upload_id', uploadId)
-    .select('competition_id')
-    .single();
+    .eq('upload_id', uploadId);
 
-  if (error) return { error: error.message };
+  if (updateErr) return { error: updateErr.message };
 
-  const adminClient = await createAdminClient();
   await adminClient.from('audit_logs').insert({
     user_id: user.id,
     action: 'UPLOAD_APPROVED',
@@ -132,12 +171,12 @@ export async function approveUpload(uploadId: string): Promise<ActionResponse> {
     entity_id: uploadId,
   });
 
-  if (upload?.competition_id) {
+  if (targetUpload.competition_id) {
     // Check if all sets are now approved
     const { data: sets } = await adminClient
       .from('contest_sets')
       .select('set_id, uploads(status)')
-      .eq('competition_id', upload.competition_id);
+      .eq('competition_id', targetUpload.competition_id);
 
     const allApproved = (sets ?? []).every((s) => {
       const uList = (s.uploads as Array<{ status: string }>) || [];
@@ -148,7 +187,7 @@ export async function approveUpload(uploadId: string): Promise<ActionResponse> {
       await adminClient
         .from('competitions')
         .update({ status: 'APPROVED' })
-        .eq('competition_id', upload.competition_id)
+        .eq('competition_id', targetUpload.competition_id)
         .neq('status', 'PUBLISHED');
     }
   }
@@ -160,9 +199,36 @@ export async function approveUpload(uploadId: string): Promise<ActionResponse> {
 export async function rejectUpload(uploadId: string, reason: string): Promise<ActionResponse> {
   const { supabase, user } = await requireSuperAdmin();
 
+  if (!isValidUuid(uploadId)) {
+    return { error: 'Invalid upload ID.' };
+  }
+
   if (!reason?.trim()) return { error: 'A rejection reason is required.' };
 
-  const { error } = await supabase
+  // 1. Fetch current upload record and competition status
+  const { data: targetUpload, error: fetchErr } = await supabase
+    .from('uploads')
+    .select('upload_id, status, competitions(status)')
+    .eq('upload_id', uploadId)
+    .maybeSingle();
+
+  if (fetchErr || !targetUpload) {
+    return { error: 'Upload not found.' };
+  }
+
+  const compStatus = (targetUpload.competitions as unknown as { status: string })?.status;
+  if (compStatus === 'PUBLISHED') {
+    return { error: 'Cannot reject uploads for a published competition.' };
+  }
+
+  if (targetUpload.status !== 'PENDING_APPROVAL') {
+    return {
+      error: `Only uploads in PENDING_APPROVAL status can be rejected. Current status: ${targetUpload.status}`,
+    };
+  }
+
+  const adminClient = await createAdminClient();
+  const { error: updateErr } = await adminClient
     .from('uploads')
     .update({
       status: 'REJECTED',
@@ -170,9 +236,8 @@ export async function rejectUpload(uploadId: string, reason: string): Promise<Ac
     })
     .eq('upload_id', uploadId);
 
-  if (error) return { error: error.message };
+  if (updateErr) return { error: updateErr.message };
 
-  const adminClient = await createAdminClient();
   await adminClient.from('audit_logs').insert({
     user_id: user.id,
     action: 'UPLOAD_REJECTED',
@@ -191,6 +256,10 @@ export async function rejectUpload(uploadId: string, reason: string): Promise<Ac
 
 export async function generateLeaderboard(competitionId: string): Promise<ActionResponse> {
   const { supabase, user } = await requireSuperAdmin();
+
+  if (!isValidUuid(competitionId)) {
+    return { error: 'Invalid competition ID.' };
+  }
 
   // 1. Fetch competition and topK
   const { data: competition, error: compError } = await supabase
@@ -307,6 +376,11 @@ export async function generateLeaderboard(competitionId: string): Promise<Action
 
 export async function publishLeaderboard(snapshotId: string): Promise<ActionResponse> {
   const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(snapshotId)) {
+    return { error: 'Invalid snapshot ID.' };
+  }
+
   const adminClient = await createAdminClient();
 
   const { data: snapshot, error: fetchError } = await adminClient
@@ -373,7 +447,27 @@ export async function saveTieBreakerRules(
   rules: RuleInput[]
 ): Promise<ActionResponse> {
   const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(competitionId)) {
+    return { error: 'Invalid competition ID.' };
+  }
+
   const adminClient = await createAdminClient();
+
+  // Check if competition is PUBLISHED
+  const { data: comp, error: compErr } = await adminClient
+    .from('competitions')
+    .select('status')
+    .eq('competition_id', competitionId)
+    .maybeSingle();
+
+  if (compErr || !comp) {
+    return { error: 'Competition not found.' };
+  }
+
+  if (comp.status === 'PUBLISHED') {
+    return { error: 'Cannot modify tie-breaker rules for a published competition.' };
+  }
 
   const validCriteria = [
     'total_score',
@@ -392,32 +486,22 @@ export async function saveTieBreakerRules(
     }
   }
 
-  // Delete existing rules for this competition
-  const { error: delError } = await adminClient
-    .from('tie_breaker_rules')
-    .delete()
-    .eq('competition_id', competitionId);
-
-  if (delError) {
-    return { error: 'Failed to reset existing rules: ' + delError.message };
-  }
-
-  // Insert new rules
   const rowsToInsert = rules.map((r) => ({
-    competition_id: competitionId,
     criterion: r.criterion,
     direction: r.direction,
     enabled: r.enabled,
     priority: r.priority,
-    approved_by: user.id,
   }));
 
-  const { error: insError } = await adminClient
-    .from('tie_breaker_rules')
-    .insert(rowsToInsert);
+  // Execute atomically via RPC function
+  const { error: rpcError } = await adminClient.rpc('save_tie_breaker_rules', {
+    p_competition_id: competitionId,
+    p_rules: rowsToInsert,
+    p_user_id: user.id,
+  });
 
-  if (insError) {
-    return { error: 'Failed to save rules: ' + insError.message };
+  if (rpcError) {
+    return { error: 'Failed to save rules: ' + rpcError.message };
   }
 
   // Audit log
@@ -448,9 +532,17 @@ export async function provisionUser(formData: FormData): Promise<void> {
   const password = formData.get('password') as string;
   const role = formData.get('role') as string;
 
-  const validRoles = ['MASTER_LAB_ADMIN', 'HOD', 'PRINCIPAL'];
-  if (!name?.trim() || !email?.trim() || !password || !validRoles.includes(role)) {
+  if (!name?.trim() || !email?.trim() || !password || !role) {
     throw new Error('Name, email, password, and a valid role are required.');
+  }
+
+  if (!isAllowedProvisionRole(role)) {
+    throw new Error(`Role "${role}" is not allowed. Permitted roles: ${ALLOWED_PROVISION_ROLES.join(', ')}`);
+  }
+
+  const passwordValidation = validatePasswordPolicy(password);
+  if (!passwordValidation.valid) {
+    throw new Error(passwordValidation.errors.join(' '));
   }
 
   const adminClient = await createAdminClient();

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import {
   LeaderboardTable,
   LeaderboardRowItem,
@@ -43,31 +43,30 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
   await connection();
   const resolvedParams = searchParams ? await searchParams : undefined;
   const requestedSlug = resolvedParams?.comp;
-  const adminClient = createAdminClient();
+  const supabase = await createClient();
 
-  // 1. Fetch competition: either requested by query, or the active/published one
+  // 1. Fetch competition: either requested by query, or the active published one
   let activeComp: Competition | null = null;
 
   if (requestedSlug) {
-    const { data } = await adminClient
+    const { data } = await supabase
       .from('competitions')
-      .select('*')
+      .select('competition_id, slug, competition_name, description, contest_date, top_k, status, created_at')
       .eq('slug', requestedSlug)
+      .eq('status', 'PUBLISHED')
       .maybeSingle();
-    activeComp = data;
+    activeComp = data as Competition | null;
   }
 
   if (!activeComp) {
-    const { data: competitions } = await adminClient
+    const { data: competitions } = await supabase
       .from('competitions')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('competition_id, slug, competition_name, description, contest_date, top_k, status, created_at')
+      .eq('status', 'PUBLISHED')
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    activeComp =
-      competitions?.find((c) => c.status === 'PUBLISHED') ||
-      competitions?.find((c) => c.status === 'READY_FOR_REVIEW') ||
-      competitions?.[0] ||
-      null;
+    activeComp = competitions?.[0] ? (competitions[0] as Competition) : null;
   }
 
   if (!activeComp) {
@@ -86,7 +85,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
           </svg>
           <h1 className="text-xl font-medium">No active competition</h1>
           <p className="text-xs text-zinc-500 mt-2">
-            There are currently no active competitions scheduled. Please check back later.
+            There are currently no published competitions available for public view. Please check back later.
           </p>
           <Link href="/" className="mt-4 inline-block text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
             &larr; Return to homepage
@@ -98,29 +97,19 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     );
   }
 
-  // 2. Fetch latest snapshot (prefer PUBLISHED, fallback to DRAFT if in review)
-  const { data: publishedSnapshots } = await adminClient
+  // 2. Fetch latest PUBLISHED snapshot (never draft)
+  const { data: publishedSnapshots } = await supabase
     .from('leaderboard_snapshots')
-    .select('*')
+    .select('snapshot_id, competition_id, version, generated_at, published_at, status')
     .eq('competition_id', activeComp.competition_id)
     .eq('status', 'PUBLISHED')
     .order('version', { ascending: false })
     .limit(1);
 
-  let currentSnapshot = publishedSnapshots && publishedSnapshots.length > 0 ? publishedSnapshots[0] : null;
+  const currentSnapshot = publishedSnapshots && publishedSnapshots.length > 0 ? publishedSnapshots[0] : null;
 
-  if (!currentSnapshot) {
-    const { data: latestSnapshots } = await adminClient
-      .from('leaderboard_snapshots')
-      .select('*')
-      .eq('competition_id', activeComp.competition_id)
-      .order('version', { ascending: false })
-      .limit(1);
-    currentSnapshot = latestSnapshots && latestSnapshots.length > 0 ? latestSnapshots[0] : null;
-  }
-
-  // 3. Fetch active contest sets
-  const { data: contestSetsData } = await adminClient
+  // 3. Fetch active contest sets (only required public columns)
+  const { data: contestSetsData } = await supabase
     .from('contest_sets')
     .select('set_id, set_name, set_code')
     .eq('competition_id', activeComp.competition_id)
@@ -130,17 +119,17 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
   const contestSets: ContestSetItem[] = contestSetsData || [];
 
   // 4. Fetch tie-breaker rules for display
-  const { data: tieBreakersData } = await adminClient
+  const { data: tieBreakersData } = await supabase
     .from('tie_breaker_rules')
     .select('criterion, direction')
     .eq('competition_id', activeComp.competition_id)
     .eq('enabled', true)
     .order('priority', { ascending: true });
 
-  // 5. Fetch leaderboard entries
+  // 5. Fetch leaderboard entries (only required columns)
   let rowItems: LeaderboardRowItem[] = [];
   if (currentSnapshot) {
-    const { data: entries } = await adminClient
+    const { data: entries } = await supabase
       .from('leaderboard_entries')
       .select(`
         entry_id,

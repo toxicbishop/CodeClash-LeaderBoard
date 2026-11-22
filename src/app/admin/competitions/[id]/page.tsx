@@ -23,7 +23,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
 
   const { data: sets } = await supabase
     .from('contest_sets')
-    .select('*, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)')
+    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, created_at, updated_at, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)')
     .eq('competition_id', competitionId)
     .order('set_code', { ascending: true });
 

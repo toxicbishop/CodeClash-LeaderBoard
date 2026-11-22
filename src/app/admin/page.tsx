@@ -12,18 +12,17 @@ export default async function AdminDashboardPage() {
     { count: competitionsCount },
     { count: setsCount },
     { count: usersCount },
+    { data: recentCompetitions },
   ] = await Promise.all([
     supabase.from('competitions').select('*', { count: 'exact', head: true }),
     supabase.from('contest_sets').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true })
       .in('role', ['MASTER_LAB_ADMIN', 'HOD', 'PRINCIPAL']),
+    supabase.from('competitions')
+      .select('*, contest_sets(set_id)')
+      .order('created_at', { ascending: false })
+      .limit(5),
   ]);
-
-  const { data: recentCompetitions } = await supabase
-    .from('competitions')
-    .select('*, contest_sets(set_id)')
-    .order('created_at', { ascending: false })
-    .limit(5);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

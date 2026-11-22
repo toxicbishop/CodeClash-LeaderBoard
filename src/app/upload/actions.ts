@@ -5,6 +5,9 @@ import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/server';
 import { fetchContestLeaderboard, HackerRankError, isValidContestSlug } from '@/lib/hackerrank/client';
 import { validateHackerRankEntries } from '@/lib/hackerrank/validate';
+import { isValidUuid } from '@/lib/validation/uuid';
+import { decryptSecret } from '@/lib/security/encryption';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export type SyncResponse = {
   success?: boolean;
@@ -19,6 +22,19 @@ export async function syncContestSetFromHackerRank(
   sessionCookie?: string
 ): Promise<SyncResponse> {
   const { user, supabase } = await requireMasterLabAdmin();
+
+  if (!isValidUuid(setId)) {
+    return { error: 'Invalid contest set ID.' };
+  }
+
+  // Rate limiting per user: 5 syncs per 60 seconds
+  const rateLimit = checkRateLimit('hr_sync', user.id, 5, 60000);
+  if (!rateLimit.success) {
+    const waitSec = Math.max(1, Math.ceil(rateLimit.resetMs / 1000));
+    return {
+      error: `Rate limit exceeded for contest synchronization. Please wait ${waitSec}s before syncing again.`,
+    };
+  }
 
   // 1. Fetch contest set details
   const { data: set, error: setError } = await supabase
@@ -38,7 +54,18 @@ export async function syncContestSetFromHackerRank(
     };
   }
   const slug = rawSlug;
-  const cookie = sessionCookie?.trim() || set.hr_session_cookie || undefined;
+
+  // Decrypt stored session cookie if present, never log it
+  let cookie: string | undefined = undefined;
+  if (sessionCookie?.trim()) {
+    cookie = sessionCookie.trim();
+  } else if (set.hr_session_cookie) {
+    try {
+      cookie = decryptSecret(set.hr_session_cookie);
+    } catch {
+      return { error: 'Failed to decrypt contest session credentials.' };
+    }
+  }
 
   // 2. Fetch from HackerRank
   let fetchResult;

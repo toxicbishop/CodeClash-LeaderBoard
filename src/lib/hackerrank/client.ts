@@ -42,6 +42,8 @@ export class HackerRankError extends Error {
  * Any other characters (e.g. '/', '.', '?', '#', '@') are disallowed to prevent SSRF and path traversal.
  */
 export const HACKERRANK_SLUG_REGEX = /^[a-zA-Z0-9_-]+$/;
+export const HACKERRANK_REQUEST_TIMEOUT_MS = 10000; // 10-second timeout per page fetch
+export const MAX_HACKERRANK_PAGES = 50;             // Max 50 pages (5,000 participants)
 
 /**
  * Validates whether a slug is safe and valid for HackerRank API requests.
@@ -98,10 +100,18 @@ export async function fetchContestLeaderboard(
     try {
       res = await fetch(url, {
         headers,
+        signal: AbortSignal.timeout(HACKERRANK_REQUEST_TIMEOUT_MS),
         // Cache for 60s so the projector view doesn't hammer HR on every refresh
         next: { revalidate: 60 },
       });
-    } catch (err) {
+    } catch (err: unknown) {
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new HackerRankError(
+          `Request to HackerRank timed out after ${HACKERRANK_REQUEST_TIMEOUT_MS}ms for "${trimmedSlug}"`,
+          408,
+          trimmedSlug,
+        );
+      }
       throw new HackerRankError(
         `Network error fetching HackerRank leaderboard for "${trimmedSlug}": ${String(err)}`,
         undefined,
@@ -140,7 +150,7 @@ export async function fetchContestLeaderboard(
     allEntries.push(...(json.models ?? []));
     page++;
 
-  } while (allEntries.length < total && page < 50); // 50 pages max = 5000 participants
+  } while (allEntries.length < total && page < MAX_HACKERRANK_PAGES);
 
   return { entries: allEntries, total, slug: trimmedSlug };
 }

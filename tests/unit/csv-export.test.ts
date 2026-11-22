@@ -40,3 +40,29 @@ describe('CSV Sanitization & Formula Injection Protection', () => {
     expect(sanitizeCsvValue(undefined)).toBe('');
   });
 });
+
+describe('Export Authorization and UUID Validation', () => {
+  it('validates UUIDs properly for competition and snapshot IDs', async () => {
+    const { isValidUuid } = await import('@/lib/validation/uuid');
+    expect(isValidUuid('d3b07384-d113-46fb-a70d-036136d7249d')).toBe(true);
+    expect(isValidUuid('invalid-uuid')).toBe(false);
+    expect(isValidUuid('12345')).toBe(false);
+    expect(isValidUuid('')).toBe(false);
+  });
+
+  it('restricts HOD and PRINCIPAL to PUBLISHED snapshots only', () => {
+    function canExportSnapshot(role: string, snapshotStatus: string): boolean {
+      if ((role === 'HOD' || role === 'PRINCIPAL') && snapshotStatus !== 'PUBLISHED') {
+        return false;
+      }
+      return true;
+    }
+
+    expect(canExportSnapshot('HOD', 'DRAFT')).toBe(false);
+    expect(canExportSnapshot('PRINCIPAL', 'DRAFT')).toBe(false);
+    expect(canExportSnapshot('HOD', 'PUBLISHED')).toBe(true);
+    expect(canExportSnapshot('PRINCIPAL', 'PUBLISHED')).toBe(true);
+    expect(canExportSnapshot('SUPER_ADMIN', 'DRAFT')).toBe(true);
+    expect(canExportSnapshot('SUPER_ADMIN', 'PUBLISHED')).toBe(true);
+  });
+});

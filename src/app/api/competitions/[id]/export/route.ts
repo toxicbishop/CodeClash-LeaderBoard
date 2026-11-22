@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAnyAuthorizedUser } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isValidUuid } from '@/lib/validation/uuid';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -27,10 +28,18 @@ function sanitizeCsvValue(val: unknown): string {
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const { profile } = await requireAnyAuthorizedUser();
+    const { profile, user } = await requireAnyAuthorizedUser();
     const { id: competitionId } = await params;
     const url = new URL(request.url);
     const requestedSnapshotId = url.searchParams.get('snapshotId');
+
+    if (!isValidUuid(competitionId)) {
+      return NextResponse.json({ error: 'Invalid competition ID' }, { status: 400 });
+    }
+
+    if (requestedSnapshotId && !isValidUuid(requestedSnapshotId)) {
+      return NextResponse.json({ error: 'Invalid snapshot ID' }, { status: 400 });
+    }
 
     const adminClient = createAdminClient();
 
@@ -64,6 +73,25 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json(
         { error: 'No generated leaderboard snapshot found for this competition.' },
         { status: 404 }
+      );
+    }
+
+    // Role check: HOD and PRINCIPAL may only export PUBLISHED snapshots
+    if ((profile.role === 'HOD' || profile.role === 'PRINCIPAL') && snapshot.status !== 'PUBLISHED') {
+      await adminClient.from('audit_logs').insert({
+        user_id: user.id,
+        action: 'ROLE_CHECK_FAILED',
+        entity_type: 'leaderboard_snapshot',
+        entity_id: snapshot.snapshot_id,
+        details: {
+          role: profile.role,
+          reason: 'Monitors may only export published snapshots',
+          competition_id: competitionId,
+        },
+      });
+      return NextResponse.json(
+        { error: 'Monitors may only export published snapshots.' },
+        { status: 403 }
       );
     }
 
@@ -140,6 +168,20 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     const filename = `${competition.slug}_leaderboard_v${snapshot.version}.csv`;
 
+    await adminClient.from('audit_logs').insert({
+      user_id: user.id,
+      action: 'LEADERBOARD_EXPORTED',
+      entity_type: 'leaderboard_snapshot',
+      entity_id: snapshot.snapshot_id,
+      details: {
+        competition_id: competitionId,
+        snapshot_version: snapshot.version,
+        format: 'CSV',
+        exported_by: profile.name,
+        role: profile.role,
+      },
+    });
+
     return new Response(csvContent, {
       status: 200,
       headers: {
@@ -153,8 +195,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     if (errorObj?.digest?.startsWith?.('NEXT_REDIRECT')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    console.error('Export leaderboard error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal Server Error' },
+      { error: 'Failed to export leaderboard' },
       { status: 500 }
     );
   }

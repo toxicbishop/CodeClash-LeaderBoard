@@ -10,7 +10,7 @@
 
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
 
 export type GuardResult = {
@@ -34,6 +34,22 @@ async function guard(allowedRoles: UserRole[], loginPath = '/'): Promise<GuardRe
     .single();
 
   if (!profile || !allowedRoles.includes(profile.role as UserRole)) {
+    try {
+      const adminClient = createAdminClient();
+      await adminClient.from('audit_logs').insert({
+        user_id: user.id,
+        action: 'ROLE_CHECK_FAILED',
+        entity_type: 'user',
+        entity_id: user.id,
+        details: {
+          current_role: profile?.role || 'UNKNOWN',
+          required_roles: allowedRoles,
+          login_path: loginPath,
+        },
+      });
+    } catch {
+      // Best-effort audit logging
+    }
     redirect(loginPath);
   }
 

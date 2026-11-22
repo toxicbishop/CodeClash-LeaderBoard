@@ -95,36 +95,33 @@ export function computeRankings(
   }
 
   // 3. Assign qualification status
-  // Find the score/criteria value at exactly rank topK
-  const cutoffEntry = ranked.find(e => e.overall_rank === topK);
-
-  if (!cutoffEntry) {
+  if (ranked.length <= topK) {
     // Fewer participants than topK — everyone qualifies
-    return ranked.map(e => ({ ...e, qualification_status: 'QUALIFIED' }));
+    return ranked.map((e) => ({ ...e, qualification_status: 'QUALIFIED' }));
   }
 
-  // Find the last rank that shares the cutoff value
-  const cutoffRank = cutoffEntry.overall_rank;
+  // Precompute participant count at each rank
+  const rankCounts = new Map<number, number>();
+  for (const entry of ranked) {
+    rankCounts.set(entry.overall_rank, (rankCounts.get(entry.overall_rank) ?? 0) + 1);
+  }
 
-  // All participants with the exact same values as the topK entry
-  const atCutoff = ranked.filter(
-    e => e.overall_rank === cutoffRank && compare(e, cutoffEntry, enabledRules) === 0,
-  );
-  const countAtCutoff = atCutoff.length;
-  const countBefore = ranked.filter(e => e.overall_rank < cutoffRank).length;
+  return ranked.map((entry) => {
+    // Rank strictly worse than Top-K cutoff
+    if (entry.overall_rank > topK) {
+      return { ...entry, qualification_status: 'NOT_QUALIFIED' };
+    }
 
-  return ranked.map(e => {
-    if (e.overall_rank < cutoffRank) {
-      return { ...e, qualification_status: 'QUALIFIED' };
+    const countAtRank = rankCounts.get(entry.overall_rank) ?? 1;
+    const startIndex = entry.overall_rank;
+    const endIndex = startIndex + countAtRank - 1;
+
+    // Entire tie group fits within topK
+    if (endIndex <= topK) {
+      return { ...entry, qualification_status: 'QUALIFIED' };
     }
-    if (e.overall_rank === cutoffRank) {
-      // If the entire tie group fits within topK, all qualify
-      if (countBefore + countAtCutoff <= topK) {
-        return { ...e, qualification_status: 'QUALIFIED' };
-      }
-      // Tie straddles the cutoff → needs Super Admin review
-      return { ...e, qualification_status: 'BOUNDARY_REVIEW' };
-    }
-    return { ...e, qualification_status: 'NOT_QUALIFIED' };
+
+    // Tie group straddles the cutoff boundary -> Super Admin review needed
+    return { ...entry, qualification_status: 'BOUNDARY_REVIEW' };
   });
 }
