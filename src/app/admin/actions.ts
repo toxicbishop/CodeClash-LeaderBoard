@@ -65,6 +65,64 @@ export async function createCompetition(formData: FormData): Promise<void> {
   redirect(`/admin/competitions/${data.competition_id}`);
 }
 
+export async function deleteCompetition(competitionId: string): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(competitionId)) {
+    return { error: 'Invalid competition ID.' };
+  }
+
+  const adminClient = await createAdminClient();
+
+  const { data: comp, error: fetchErr } = await adminClient
+    .from('competitions')
+    .select('competition_id, competition_name, slug, status')
+    .eq('competition_id', competitionId)
+    .maybeSingle();
+
+  if (fetchErr || !comp) {
+    return { error: 'Competition not found.' };
+  }
+
+  // Delete snapshots first so leaderboard_entries cascade cleanly before participants/contest_sets
+  const { error: snapDelErr } = await adminClient
+    .from('leaderboard_snapshots')
+    .delete()
+    .eq('competition_id', competitionId);
+
+  if (snapDelErr) {
+    return { error: `Failed to delete snapshots: ${snapDelErr.message}` };
+  }
+
+  const { error: compDelErr } = await adminClient
+    .from('competitions')
+    .delete()
+    .eq('competition_id', competitionId);
+
+  if (compDelErr) {
+    return { error: `Failed to delete competition: ${compDelErr.message}` };
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'COMPETITION_DELETED',
+    entity_type: 'competition',
+    entity_id: competitionId,
+    details: {
+      competition_name: comp.competition_name,
+      slug: comp.slug,
+      previous_status: comp.status,
+    },
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/admin/competitions');
+  revalidatePath('/leaderboard');
+  revalidatePath('/monitor');
+  revalidatePath('/upload');
+  return { success: true };
+}
+
 // ---------------------------------------------------------------------------
 // Contest set management
 // ---------------------------------------------------------------------------
@@ -433,6 +491,64 @@ export async function publishLeaderboard(snapshotId: string): Promise<ActionResp
 
   revalidatePath(`/admin/competitions/${snapshot.competition_id}`);
   revalidatePath('/monitor');
+  revalidatePath('/leaderboard');
+  return { success: true };
+}
+
+export async function endLeaderboard(competitionId: string): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(competitionId)) {
+    return { error: 'Invalid competition ID.' };
+  }
+
+  const adminClient = await createAdminClient();
+
+  const { data: comp, error: compErr } = await adminClient
+    .from('competitions')
+    .select('competition_id, competition_name, status')
+    .eq('competition_id', competitionId)
+    .maybeSingle();
+
+  if (compErr || !comp) {
+    return { error: 'Competition not found.' };
+  }
+
+  // Archive any currently published snapshots so /leaderboard no longer serves them
+  const { error: snapErr } = await adminClient
+    .from('leaderboard_snapshots')
+    .update({ status: 'SUPERSEDED' })
+    .eq('competition_id', competitionId)
+    .eq('status', 'PUBLISHED');
+
+  if (snapErr) {
+    return { error: `Failed to end leaderboard snapshots: ${snapErr.message}` };
+  }
+
+  // Revert competition status from PUBLISHED to APPROVED so sets/rules can be adjusted or a new snapshot published
+  const { error: compUpdateErr } = await adminClient
+    .from('competitions')
+    .update({ status: 'APPROVED' })
+    .eq('competition_id', competitionId)
+    .eq('status', 'PUBLISHED');
+
+  if (compUpdateErr) {
+    return { error: `Failed to update competition status: ${compUpdateErr.message}` };
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'LEADERBOARD_ENDED',
+    entity_type: 'competition',
+    entity_id: competitionId,
+    details: { competition_name: comp.competition_name, previous_status: comp.status },
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/admin/competitions');
+  revalidatePath(`/admin/competitions/${competitionId}`);
+  revalidatePath('/monitor');
+  revalidatePath('/leaderboard');
   return { success: true };
 }
 
@@ -581,4 +697,110 @@ export async function provisionUser(formData: FormData): Promise<void> {
 
   revalidatePath('/admin/users');
   redirect('/admin/users');
+}
+
+export async function toggleUserStatus(
+  userId: string,
+  nextStatus: 'ACTIVE' | 'INACTIVE',
+): Promise<ActionResponse> {
+  const { user: callerUser } = await requireSuperAdmin();
+
+  if (!isValidUuid(userId)) {
+    return { error: 'Invalid user ID.' };
+  }
+
+  if (userId === callerUser.id) {
+    return { error: 'You cannot change your own account status.' };
+  }
+
+  if (nextStatus !== 'ACTIVE' && nextStatus !== 'INACTIVE') {
+    return { error: 'Invalid account status.' };
+  }
+
+  const adminClient = await createAdminClient();
+  const { data: target, error: fetchErr } = await adminClient
+    .from('users')
+    .select('user_id, email, role, account_status')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (fetchErr || !target) {
+    return { error: 'User not found.' };
+  }
+
+  if (target.role === 'SUPER_ADMIN') {
+    return { error: 'Cannot modify Super Admin accounts.' };
+  }
+
+  const { error: updateErr } = await adminClient
+    .from('users')
+    .update({ account_status: nextStatus })
+    .eq('user_id', userId);
+
+  if (updateErr) {
+    return { error: updateErr.message };
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: callerUser.id,
+    action: nextStatus === 'INACTIVE' ? 'USER_DEACTIVATED' : 'USER_REACTIVATED',
+    entity_type: 'user',
+    entity_id: userId,
+    details: { email: target.email, role: target.role, account_status: nextStatus },
+  });
+
+  revalidatePath('/admin/users');
+  revalidatePath('/admin');
+  return { success: true };
+}
+
+export async function deleteUser(userId: string): Promise<ActionResponse> {
+  const { user: callerUser } = await requireSuperAdmin();
+
+  if (!isValidUuid(userId)) {
+    return { error: 'Invalid user ID.' };
+  }
+
+  if (userId === callerUser.id) {
+    return { error: 'You cannot delete your own account.' };
+  }
+
+  const adminClient = await createAdminClient();
+  const { data: target, error: fetchErr } = await adminClient
+    .from('users')
+    .select('user_id, name, email, role')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (fetchErr || !target) {
+    return { error: 'User not found.' };
+  }
+
+  if (target.role === 'SUPER_ADMIN') {
+    return { error: 'Cannot delete a Super Admin account.' };
+  }
+
+  const { error: deleteErr } = await adminClient.auth.admin.deleteUser(userId);
+  if (deleteErr) {
+    const msg = deleteErr.message.toLowerCase();
+    if (msg.includes('database') || msg.includes('foreign') || msg.includes('constraint')) {
+      return {
+        error:
+          'Cannot delete this account because it is linked to existing competition uploads or snapshots. Delete those competitions first, or deactivate the account instead.',
+      };
+    }
+    return { error: deleteErr.message };
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: callerUser.id,
+    action: 'USER_DELETED',
+    entity_type: 'user',
+    entity_id: userId,
+    details: { name: target.name, email: target.email, role: target.role },
+  });
+
+  revalidatePath('/admin/users');
+  revalidatePath('/admin');
+  return { success: true };
 }

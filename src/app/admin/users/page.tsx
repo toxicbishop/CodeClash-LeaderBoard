@@ -1,6 +1,7 @@
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { UserActionsClient } from './UserActionsClient';
 
 export const instant = false;
 
@@ -56,6 +57,7 @@ export default async function AdminUsersPage() {
                     <th className="px-6 py-3.5">Role</th>
                     <th className="px-6 py-3.5">Status</th>
                     <th className="px-6 py-3.5">Created</th>
+                    <th className="px-6 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -79,6 +81,14 @@ export default async function AdminUsersPage() {
                       </td>
                       <td className="px-6 py-4 text-xs text-zinc-500">
                         {new Date(u.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <UserActionsClient
+                          userId={u.user_id}
+                          userName={u.name}
+                          userRole={roleLabel[u.role] ?? u.role}
+                          accountStatus={u.account_status}
+                        />
                       </td>
                     </tr>
                   ))}

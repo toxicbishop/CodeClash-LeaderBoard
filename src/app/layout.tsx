@@ -32,6 +32,10 @@ export const metadata: Metadata = {
   description:
     "Centralized competition platform for Code Clash 2026, featuring live HackerRank API leaderboard syncing, automated data validation, and unified rankings.",
   applicationName: "Code Clash Leaderboard",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+  },
   authors: [{ name: "Code Clash Team" }],
   keywords: [
     "Code Clash",

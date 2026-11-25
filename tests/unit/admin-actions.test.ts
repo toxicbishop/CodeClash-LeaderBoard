@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createCompetition,
   createContestSet,
+  deleteCompetition,
+  deleteUser,
+  toggleUserStatus,
   approveUpload,
   rejectUpload,
   generateLeaderboard,
   publishLeaderboard,
+  endLeaderboard,
 } from '@/app/admin/actions';
 
 const { sessionClient, serviceClient } = vi.hoisted(() => ({
@@ -63,6 +67,10 @@ describe('Super Admin role protection', () => {
     await expect(rejectUpload('some-upload-id', 'test')).rejects.toThrow('REDIRECT:/');
     await expect(generateLeaderboard('comp-id')).rejects.toThrow('REDIRECT:/');
     await expect(publishLeaderboard('snap-id')).rejects.toThrow('REDIRECT:/');
+    await expect(endLeaderboard('comp-id')).rejects.toThrow('REDIRECT:/');
+    await expect(deleteCompetition('comp-id')).rejects.toThrow('REDIRECT:/');
+    await expect(deleteUser('user-id')).rejects.toThrow('REDIRECT:/');
+    await expect(toggleUserStatus('user-id', 'INACTIVE')).rejects.toThrow('REDIRECT:/');
 
     const fd = new FormData();
     await expect(createCompetition(fd)).rejects.toThrow('REDIRECT:/');

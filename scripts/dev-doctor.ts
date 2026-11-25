@@ -2,7 +2,7 @@
  * scripts/dev-doctor.ts
  *
  * Pre-flight check run before `pnpm dev`.
- * Verifies the local Supabase stack is responding and env vars are present.
+ * Verifies the Supabase stack (local or remote cloud) is responding and env vars are present.
  * Aborts immediately with a helpful message instead of letting Next.js hang
  * for 25-30 seconds with cryptic AuthRetryableFetchError messages.
  *
@@ -21,6 +21,7 @@ const RED    = '\x1b[31m';
 const GREEN  = '\x1b[32m';
 const YELLOW = '\x1b[33m';
 const BOLD   = '\x1b[1m';
+const CYAN   = '\x1b[36m';
 
 const ok   = (msg: string) => console.log(`${GREEN}✓${RESET} ${msg}`);
 const fail = (msg: string) => console.error(`${RED}✗${RESET} ${msg}`);
@@ -61,37 +62,58 @@ function checkEnv() {
 
 async function checkSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url) return; // already reported by checkEnv
 
+  const isLocal = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0');
   const healthUrl = `${url}/auth/v1/health`;
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
-    const res = await fetch(healthUrl, { signal: controller.signal });
+    const headers: Record<string, string> = {};
+    if (anonKey) {
+      headers['apikey'] = anonKey.trim();
+      headers['Authorization'] = `Bearer ${anonKey.trim()}`;
+    }
+
+    const res = await fetch(healthUrl, { signal: controller.signal, headers });
     clearTimeout(timeout);
 
     if (res.ok) {
-      ok(`Supabase local stack is healthy (${url})`);
+      if (isLocal) {
+        ok(`Supabase local stack is healthy (${url})`);
+      } else {
+        ok(`Connected to deployed Supabase cloud (${CYAN}${url}${RESET})`);
+      }
     } else {
       fail(`Supabase returned HTTP ${res.status} from ${healthUrl}`);
-      info('  → Run: supabase start');
+      info(isLocal ? '  → Run: supabase start' : '  → Verify NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local');
       hasErrors = true;
     }
   } catch {
-    fail(`Supabase local stack is not responding at ${url}`);
-    info('');
-    info(`  ${BOLD}To fix:${RESET}`);
-    info('    1. Make sure Docker Desktop is running');
-    info('    2. Run: supabase start');
-    info('    3. Then: pnpm dev');
-    info('');
+    if (isLocal) {
+      fail(`Supabase local stack is not responding at ${url}`);
+      info('');
+      info(`  ${BOLD}To fix:${RESET}`);
+      info('    1. Make sure Docker Desktop is running');
+      info('    2. Run: supabase start');
+      info('    3. Then: pnpm dev');
+      info('');
+    } else {
+      fail(`Could not connect to deployed Supabase at ${url}`);
+      info('  → Check your internet connection and verify NEXT_PUBLIC_SUPABASE_URL in .env.local');
+    }
     hasErrors = true;
   }
 }
 
 async function checkPendingMigrations() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const isLocal = url ? url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0') : true;
+  if (!isLocal) return;
+
   // Just warn if there are unapplied migrations — don't fail dev startup
   try {
     const { execSync } = await import('node:child_process');

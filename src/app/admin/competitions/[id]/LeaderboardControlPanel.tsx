@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { generateLeaderboard, publishLeaderboard } from '@/app/admin/actions';
+import { generateLeaderboard, publishLeaderboard, endLeaderboard } from '@/app/admin/actions';
 
 export interface Snapshot {
   snapshot_id: string;
@@ -16,6 +16,7 @@ export interface Snapshot {
 interface LeaderboardControlPanelProps {
   competitionId: string;
   competitionSlug: string;
+  competitionStatus: string;
   snapshots: Snapshot[];
   hasApprovedUploads: boolean;
 }
@@ -23,6 +24,7 @@ interface LeaderboardControlPanelProps {
 export function LeaderboardControlPanel({
   competitionId,
   competitionSlug,
+  competitionStatus,
   snapshots,
   hasApprovedUploads,
 }: LeaderboardControlPanelProps) {
@@ -30,6 +32,7 @@ export function LeaderboardControlPanel({
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const isLive = competitionStatus === 'PUBLISHED' || snapshots.some((s) => s.status === 'PUBLISHED');
 
   function handleGenerate() {
     setErrorMsg(null);
@@ -58,6 +61,27 @@ export function LeaderboardControlPanel({
         setErrorMsg(res.error);
       } else {
         setSuccessMsg(`Leaderboard snapshot v${version} is now LIVE on the public leaderboard!`);
+        router.refresh();
+      }
+    });
+  }
+
+  function handleEndLeaderboard() {
+    if (
+      !confirm(
+        'End the live leaderboard? Public viewers will no longer see it on /leaderboard, and you can adjust sets or publish a new snapshot later.',
+      )
+    ) {
+      return;
+    }
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    startTransition(async () => {
+      const res = await endLeaderboard(competitionId);
+      if (res?.error) {
+        setErrorMsg(res.error);
+      } else {
+        setSuccessMsg('Live leaderboard has been ended and taken offline.');
         router.refresh();
       }
     });
@@ -116,6 +140,17 @@ export function LeaderboardControlPanel({
           >
             {isPending ? 'Processing...' : 'Generate snapshot'}
           </button>
+
+          {isLive && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleEndLeaderboard}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              End leaderboard
+            </button>
+          )}
         </div>
       </div>
 

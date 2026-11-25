@@ -2,6 +2,7 @@ import Link from 'next/link';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
+import { DeleteCompetitionButton } from './DeleteCompetitionButton';
 
 export const instant = false;
 
@@ -77,11 +78,15 @@ export default async function AdminCompetitionsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                    <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3">
                       <Link href={`/admin/competitions/${comp.competition_id}`}
                         className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
                         Manage Sets & Approvals →
                       </Link>
+                      <DeleteCompetitionButton
+                        competitionId={comp.competition_id}
+                        competitionName={comp.competition_name}
+                      />
                     </div>
                   </div>
                 );

@@ -4,6 +4,7 @@ import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { LeaderboardControlPanel, Snapshot } from './LeaderboardControlPanel';
+import { DeleteCompetitionButton } from '../DeleteCompetitionButton';
 
 export const instant = false;
 
@@ -62,9 +63,14 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                 <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-3xl">{competition.description}</p>
               )}
             </div>
-            <div className="flex flex-col sm:items-end text-xs text-zinc-500 space-y-1">
+            <div className="flex flex-col sm:items-end text-xs text-zinc-500 space-y-2">
               <div>Contest Date: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{new Date(competition.contest_date).toLocaleDateString()}</span></div>
               <div>Top-K: <span className="font-semibold text-indigo-600 dark:text-indigo-400">Top {competition.top_k}</span></div>
+              <DeleteCompetitionButton
+                competitionId={competition.competition_id}
+                competitionName={competition.competition_name}
+                redirectToList
+              />
             </div>
           </div>
         </div>
@@ -162,6 +168,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
           <LeaderboardControlPanel
             competitionId={competitionId}
             competitionSlug={competition.slug}
+            competitionStatus={competition.status}
             snapshots={(snapshots as unknown as Snapshot[]) || []}
             hasApprovedUploads={hasApprovedUploads}
           />
