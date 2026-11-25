@@ -11,7 +11,7 @@ export async function proxy(request: NextRequest) {
   // - If attempting to access a protected area, redirect to / immediately without making any remote network calls.
   // - If accessing a public route, bypass Supabase entirely and return immediately (0ms network cost).
   if (!hasAuthToken) {
-    if (path.startsWith('/admin') || path.startsWith('/upload') || path.startsWith('/monitor') || path.startsWith('/lab-admin')) {
+    if (path.startsWith('/admin') || path.startsWith('/upload') || path.startsWith('/lab-admin')) {
       return NextResponse.redirect(new URL('/', request.url));
     }
     return NextResponse.next({ request });
@@ -55,7 +55,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  if (!user && (path.startsWith('/admin') || path.startsWith('/upload') || path.startsWith('/monitor') || path.startsWith('/lab-admin'))) {
+  if (!user && (path.startsWith('/admin') || path.startsWith('/upload') || path.startsWith('/lab-admin'))) {
     return redirectTo('/');
   }
 
@@ -74,7 +74,7 @@ export async function proxy(request: NextRequest) {
       return redirectTo('/upload');
     }
     if (profile?.role === 'HOD' || profile?.role === 'PRINCIPAL') {
-      return redirectTo('/monitor');
+      return redirectTo('/leaderboard');
     }
   }
 

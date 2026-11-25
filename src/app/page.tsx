@@ -37,7 +37,7 @@ export default async function LoginPage() {
       } else if (profile?.role === 'MASTER_LAB_ADMIN' || profile?.role === 'LAB_ADMIN') {
         redirect('/upload');
       } else if (profile?.role === 'HOD' || profile?.role === 'PRINCIPAL') {
-        redirect('/monitor');
+        redirect('/leaderboard');
       }
     }
   }
