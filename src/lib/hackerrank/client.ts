@@ -56,7 +56,7 @@ export function isValidContestSlug(slug: unknown): slug is string {
  * Fetch the full leaderboard for a HackerRank contest.
  *
  * @param slug           Contest slug, e.g. "codeclash-2026-setA"
- * @param sessionCookie  Optional _hr_session cookie for private contests
+ * @param sessionCookie  Optional _hrank_session value (or full Cookie header string) for private contests
  */
 export async function fetchContestLeaderboard(
   slug: string,
@@ -76,7 +76,12 @@ export async function fetchContestLeaderboard(
     'User-Agent': 'CodeClash-Leaderboard/2.0',
   };
   if (sessionCookie) {
-    headers['Cookie'] = `_hr_session=${sessionCookie}`;
+    const cleanCookie = sessionCookie.replace(/[\r\n]+/g, '').trim();
+    if (cleanCookie) {
+      headers['Cookie'] = cleanCookie.includes('=')
+        ? cleanCookie
+        : `_hrank_session=${cleanCookie}`;
+    }
   }
 
   const allEntries: HackerRankEntry[] = [];

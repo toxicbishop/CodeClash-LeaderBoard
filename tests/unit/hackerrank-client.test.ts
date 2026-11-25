@@ -94,5 +94,30 @@ describe('HackerRank Client SSRF Protection and Slug Validation', () => {
       expect(urlObj.origin).toBe('https://www.hackerrank.com');
       expect(urlObj.pathname).toBe('/rest/contests/codeclash-setA/leaderboard');
     });
+
+    it('sends _hrank_session for bare values and preserves full name=value cookie strings', async () => {
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ models: [], total: 0 }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ models: [], total: 0 }), { status: 200 }),
+        );
+
+      await fetchContestLeaderboard('codeclash-setA', 'abc123token');
+      const firstInit = vi.mocked(global.fetch).mock.calls[0][1] as RequestInit;
+      expect((firstInit.headers as Record<string, string>)['Cookie']).toBe(
+        '_hrank_session=abc123token',
+      );
+
+      await fetchContestLeaderboard(
+        'codeclash-setA',
+        '_hrank_session=abc123token; remember_hacker_token=xyz',
+      );
+      const secondInit = vi.mocked(global.fetch).mock.calls[1][1] as RequestInit;
+      expect((secondInit.headers as Record<string, string>)['Cookie']).toBe(
+        '_hrank_session=abc123token; remember_hacker_token=xyz',
+      );
+    });
   });
 });
