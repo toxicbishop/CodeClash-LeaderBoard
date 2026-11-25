@@ -15,7 +15,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
 
   const { data: set } = await supabase
     .from('contest_sets')
-    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, created_at, updated_at, competitions(*)')
+    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, created_at, competitions(*)')
     .eq('set_id', setId)
     .single();
 
