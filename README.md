@@ -17,7 +17,7 @@ Visual preview of the administrator sign-in portal and the competition overview 
 
 | Administrator Sign-in | Competition Dashboard |
 | :---: | :---: |
-| ![Sign-in Page](public/Loginpage.png) | ![Competition Dashboard](public/Dashboard.png) |
+| ![Sign-in Page](docs/assets/Loginpage.png) | ![Competition Dashboard](docs/assets/Dashboard.png) |
 
 ## Competition workflow
 
@@ -32,7 +32,7 @@ The centralized Version 2 architecture uses one **Master Lab Admin** to ingest i
 
 ## Architecture
 
-![System Architecture](public/System-Architecture.png)
+![System Architecture](docs/assets/System-Architecture.png)
 
 The system architecture diagram illustrates the end-to-end flow from user and administrator actions through Next.js server components, authentication, Supabase persistence, and live leaderboard ingestion.
 

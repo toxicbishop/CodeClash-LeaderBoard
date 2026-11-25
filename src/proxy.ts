@@ -1,18 +1,24 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const BLOCKED_MEDIA_REGEX =
+  /\.(png|jpg|jpeg|gif|webp|svg|avif|bmp|tiff|mp4|webm|mov|avi|mkv|m4v)$/i;
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+
+  if (BLOCKED_MEDIA_REGEX.test(path)) {
+    return NextResponse.rewrite(new URL('/forbidden', request.url), { status: 403 });
+  }
 
   // 1. Fast-path: check if any Supabase session cookies exist in this request
   const hasAuthToken = request.cookies.getAll().some((c) => c.name.includes('-auth-token'));
 
-  // If there are no auth cookies at all:
-  // - If attempting to access a protected area, redirect to / immediately without making any remote network calls.
-  // - If accessing a public route, bypass Supabase entirely and return immediately (0ms network cost).
+  // If there are no auth cookies at all, rewrite protected routes to 401 immediately
+  // without making any remote network calls.
   if (!hasAuthToken) {
     if (path.startsWith('/admin') || path.startsWith('/upload') || path.startsWith('/lab-admin')) {
-      return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.rewrite(new URL('/unauthorized', request.url), { status: 401 });
     }
     return NextResponse.next({ request });
   }
@@ -56,7 +62,11 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!user && (path.startsWith('/admin') || path.startsWith('/upload') || path.startsWith('/lab-admin'))) {
-    return redirectTo('/');
+    const response = NextResponse.rewrite(new URL('/unauthorized', request.url), { status: 401 });
+    for (const cookie of supabaseResponse.cookies.getAll()) {
+      response.cookies.set(cookie);
+    }
+    return response;
   }
 
   // Fast redirect for logged-in users visiting /
@@ -90,6 +100,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - robots.txt and sitemap.xml (public crawler metadata)
      */
-    '/((?!_next/static|_next/image|favicon.ico|robots\\.txt$|sitemap\\.xml$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|robots\\.txt$|sitemap\\.xml$).*)',
   ],
 };

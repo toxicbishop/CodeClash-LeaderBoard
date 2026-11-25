@@ -6,6 +6,8 @@ test('competition administrators can sign in and reach their dashboard', async (
   if (!email || !password) throw new Error('Set the test administrator credentials before running this test.');
 
   await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Unauthorized' })).toBeVisible();
+  await page.goto('/');
   await expect(page).toHaveURL('/');
   await page.getByLabel(/username|email address/i).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);

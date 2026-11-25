@@ -31,6 +31,9 @@ vi.mock('next/navigation', () => ({
   forbidden: vi.fn(() => {
     throw new Error('FORBIDDEN:403');
   }),
+  unauthorized: vi.fn(() => {
+    throw new Error('UNAUTHORIZED:401');
+  }),
 }));
 
 beforeEach(() => vi.resetAllMocks());
@@ -78,5 +81,15 @@ describe('Super Admin role protection', () => {
     const fd = new FormData();
     await expect(createCompetition(fd)).rejects.toThrow('FORBIDDEN:403');
     await expect(createContestSet(fd)).rejects.toThrow('FORBIDDEN:403');
+  });
+
+  it('denies unauthenticated callers via HTTP 401 unauthorized', async () => {
+    sessionClient.mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: null } }) },
+      from: vi.fn(),
+    });
+
+    await expect(approveUpload('some-upload-id')).rejects.toThrow('UNAUTHORIZED:401');
+    await expect(deleteCompetition('comp-id')).rejects.toThrow('UNAUTHORIZED:401');
   });
 });

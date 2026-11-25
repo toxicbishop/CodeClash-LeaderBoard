@@ -53,23 +53,12 @@ export const metadata: Metadata = {
     title: "Code Clash Leaderboard — Centralized Competition Platform",
     description:
       "Real-time competition leaderboard featuring live HackerRank sync, multi-lab scoring, and Top-K qualifiers for Code Clash 2026.",
-    images: [
-      {
-        url: "/Loginpage.png",
-        secureUrl: "https://code-clash-leaderboard.vercel.app/Loginpage.png",
-        width: 1200,
-        height: 630,
-        type: "image/png",
-        alt: "Code Clash Leaderboard Sign In Preview",
-      },
-    ],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "Code Clash Leaderboard — Centralized Competition Platform",
     description:
       "Real-time competition leaderboard featuring live HackerRank sync, multi-lab scoring, and Top-K qualifiers for Code Clash 2026.",
-    images: ["https://code-clash-leaderboard.vercel.app/Loginpage.png"],
   },
 };
 

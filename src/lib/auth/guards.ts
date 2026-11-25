@@ -8,7 +8,7 @@
  *   SUPER_ADMIN | MASTER_LAB_ADMIN → requireAnyAdmin() — shared pages
  */
 
-import { forbidden, redirect } from 'next/navigation';
+import { forbidden, unauthorized } from 'next/navigation';
 import { connection } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
@@ -19,12 +19,12 @@ export type GuardResult = {
   supabase: Awaited<ReturnType<typeof createClient>>;
 };
 
-async function guard(allowedRoles: UserRole[], loginPath = '/'): Promise<GuardResult> {
+async function guard(allowedRoles: UserRole[], _loginPath = '/'): Promise<GuardResult> {
   await connection();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(loginPath);
+  if (!user) unauthorized();
 
   const { data: profile } = await supabase
     .from('users')
@@ -44,7 +44,7 @@ async function guard(allowedRoles: UserRole[], loginPath = '/'): Promise<GuardRe
         details: {
           current_role: profile?.role || 'UNKNOWN',
           required_roles: allowedRoles,
-          login_path: loginPath,
+          attempted_path: _loginPath,
         },
       });
     } catch {
