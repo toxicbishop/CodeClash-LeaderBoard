@@ -85,6 +85,21 @@ export default async function NewContestSetPage({ params }: PageProps) {
               </p>
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                HackerRank Session Cookie (Optional)
+              </label>
+              <input
+                name="hr_session_cookie"
+                type="password"
+                className="mt-1 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Paste _hrank_session value so lab admins don't need to"
+              />
+              <p className="mt-1 text-[11px] text-zinc-500">
+                Encrypted with AES-256-GCM before storing. Leave blank if you prefer entering it during sync.
+              </p>
+            </div>
+
             <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end space-x-3">
               <Link
                 href={`/admin/competitions/${competitionId}`}

@@ -7,12 +7,14 @@ import { syncContestSetFromHackerRank } from '@/app/upload/actions';
 interface SyncSetClientProps {
   setId: string;
   defaultSlug: string;
+  hasSavedCookie?: boolean;
 }
 
-export default function SyncSetClient({ setId, defaultSlug }: SyncSetClientProps) {
+export default function SyncSetClient({ setId, defaultSlug, hasSavedCookie = false }: SyncSetClientProps) {
   const router = useRouter();
   const [slug, setSlug] = useState(defaultSlug);
   const [cookie, setCookie] = useState('');
+  const [cookieSaved, setCookieSaved] = useState(hasSavedCookie);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -27,6 +29,10 @@ export default function SyncSetClient({ setId, defaultSlug }: SyncSetClientProps
     if (res.error) {
       setMessage({ text: res.error, type: 'error' });
     } else {
+      if (cookie.trim()) {
+        setCookieSaved(true);
+        setCookie('');
+      }
       setMessage({
         text: `Successfully synced ${res.recordsCount} participants from HackerRank!`,
         type: 'success',
@@ -69,18 +75,31 @@ export default function SyncSetClient({ setId, defaultSlug }: SyncSetClientProps
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-          Private Contest Session Cookie (Optional)
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+            Private Contest Session Cookie (Optional)
+          </label>
+          {cookieSaved && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              Saved server-side
+            </span>
+          )}
+        </div>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          Only required if this contest is invite-only or password-protected. Stored server-side.
+          {cookieSaved
+            ? 'A session cookie is already saved for this set. Leave blank to reuse it, or paste a new one to replace it.'
+            : 'Encrypted and saved server-side after a successful sync so future syncs work without re-entering it.'}
         </p>
         <input
           type="password"
           value={cookie}
           onChange={(e) => setCookie(e.target.value)}
           className="mt-1.5 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="Paste _hrank_session value (or full cookie string)"
+          placeholder={
+            cookieSaved
+              ? 'Leave blank to use saved cookie (or paste new value)'
+              : 'Paste _hrank_session value (or full cookie string)'
+          }
         />
       </div>
 

@@ -15,11 +15,13 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
 
   const { data: set } = await supabase
     .from('contest_sets')
-    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, created_at, competitions(*)')
+    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, hr_session_cookie, created_at, competitions(*)')
     .eq('set_id', setId)
     .single();
 
   if (!set) notFound();
+
+  const hasSavedCookie = Boolean(set.hr_session_cookie);
 
   // Fetch recent uploads for this set
   const { data: uploads } = await supabase
@@ -81,7 +83,11 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
             <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mb-4">
               Trigger HackerRank Sync
             </h2>
-            <SyncSetClient setId={set.set_id} defaultSlug={set.hackerrank_slug} />
+            <SyncSetClient
+              setId={set.set_id}
+              defaultSlug={set.hackerrank_slug}
+              hasSavedCookie={hasSavedCookie}
+            />
           </div>
         </div>
 

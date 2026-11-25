@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { fetchContestLeaderboard, HackerRankError, isValidContestSlug } from '@/lib/hackerrank/client';
 import { validateHackerRankEntries } from '@/lib/hackerrank/validate';
 import { isValidUuid } from '@/lib/validation/uuid';
-import { decryptSecret } from '@/lib/security/encryption';
+import { decryptSecret, encryptSecret } from '@/lib/security/encryption';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export type SyncResponse = {
@@ -78,6 +78,17 @@ export async function syncContestSetFromHackerRank(
     return { error: `Failed to fetch from HackerRank: ${String(err)}` };
   }
 
+  const adminClient = await createAdminClient();
+
+  // Persist verified session cookie (AES-256-GCM encrypted) so future syncs don't require re-pasting
+  const providedCookie = sessionCookie?.replace(/[\r\n]+/g, '').trim();
+  if (providedCookie) {
+    await adminClient
+      .from('contest_sets')
+      .update({ hr_session_cookie: encryptSecret(providedCookie) })
+      .eq('set_id', setId);
+  }
+
   const { entries, total } = fetchResult;
 
   // 3. Validate entries
@@ -119,8 +130,6 @@ export async function syncContestSetFromHackerRank(
       });
     }
   });
-
-  const adminClient = await createAdminClient();
 
   // 6. Insert into uploads
   const { data: upload, error: uploadError } = await adminClient

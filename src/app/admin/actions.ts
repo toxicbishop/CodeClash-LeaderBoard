@@ -8,6 +8,7 @@ import { computeRankings } from '@/lib/ranking/engine';
 import { isValidContestSlug } from '@/lib/hackerrank/client';
 import { isValidUuid } from '@/lib/validation/uuid';
 import { isAllowedProvisionRole, validatePasswordPolicy, ALLOWED_PROVISION_ROLES } from '@/lib/security/password';
+import { encryptSecret } from '@/lib/security/encryption';
 import type { TieBreakerRule } from '@/types/database';
 
 export type ActionResponse = {
@@ -75,6 +76,9 @@ export async function createContestSet(formData: FormData): Promise<void> {
   const setName = formData.get('set_name') as string;
   const setCode = formData.get('set_code') as string;
   const hackerrankSlug = formData.get('hackerrank_slug') as string;
+  const rawCookie = (formData.get('hr_session_cookie') as string | null)
+    ?.replace(/[\r\n]+/g, '')
+    .trim();
 
   if (!competitionId || !setName?.trim() || !setCode?.trim() || !hackerrankSlug?.trim()) {
     throw new Error('Competition ID, set name, set code, and HackerRank slug are all required.');
@@ -94,6 +98,7 @@ export async function createContestSet(formData: FormData): Promise<void> {
     set_name: setName.trim(),
     set_code: setCode.trim().toLowerCase(),
     hackerrank_slug: trimmedSlug,
+    ...(rawCookie ? { hr_session_cookie: encryptSecret(rawCookie) } : {}),
   });
 
   if (error) throw new Error(error.message);
