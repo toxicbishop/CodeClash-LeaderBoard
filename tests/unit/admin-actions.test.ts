@@ -28,6 +28,9 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
+  forbidden: vi.fn(() => {
+    throw new Error('FORBIDDEN:403');
+  }),
 }));
 
 beforeEach(() => vi.resetAllMocks());
@@ -60,20 +63,20 @@ describe('Super Admin role protection', () => {
     ['HOD', 'ACTIVE'],
     ['PRINCIPAL', 'ACTIVE'],
     ['SUPER_ADMIN', 'INACTIVE'],
-  ])('denies %s with status %s by redirecting to /', async (role, status) => {
+  ])('denies %s with status %s via HTTP 403 forbidden', async (role, status) => {
     mockSession(role, status);
 
-    await expect(approveUpload('some-upload-id')).rejects.toThrow('REDIRECT:/');
-    await expect(rejectUpload('some-upload-id', 'test')).rejects.toThrow('REDIRECT:/');
-    await expect(generateLeaderboard('comp-id')).rejects.toThrow('REDIRECT:/');
-    await expect(publishLeaderboard('snap-id')).rejects.toThrow('REDIRECT:/');
-    await expect(endLeaderboard('comp-id')).rejects.toThrow('REDIRECT:/');
-    await expect(deleteCompetition('comp-id')).rejects.toThrow('REDIRECT:/');
-    await expect(deleteUser('user-id')).rejects.toThrow('REDIRECT:/');
-    await expect(toggleUserStatus('user-id', 'INACTIVE')).rejects.toThrow('REDIRECT:/');
+    await expect(approveUpload('some-upload-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(rejectUpload('some-upload-id', 'test')).rejects.toThrow('FORBIDDEN:403');
+    await expect(generateLeaderboard('comp-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(publishLeaderboard('snap-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(endLeaderboard('comp-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(deleteCompetition('comp-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(deleteUser('user-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(toggleUserStatus('user-id', 'INACTIVE')).rejects.toThrow('FORBIDDEN:403');
 
     const fd = new FormData();
-    await expect(createCompetition(fd)).rejects.toThrow('REDIRECT:/');
-    await expect(createContestSet(fd)).rejects.toThrow('REDIRECT:/');
+    await expect(createCompetition(fd)).rejects.toThrow('FORBIDDEN:403');
+    await expect(createContestSet(fd)).rejects.toThrow('FORBIDDEN:403');
   });
 });

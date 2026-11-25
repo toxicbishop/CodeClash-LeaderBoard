@@ -8,7 +8,7 @@
  *   SUPER_ADMIN | MASTER_LAB_ADMIN → requireAnyAdmin() — shared pages
  */
 
-import { redirect } from 'next/navigation';
+import { forbidden, redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/types/database';
@@ -50,7 +50,7 @@ async function guard(allowedRoles: UserRole[], loginPath = '/'): Promise<GuardRe
     } catch {
       // Best-effort audit logging
     }
-    redirect(loginPath);
+    forbidden();
   }
 
   return { user, profile: profile as GuardResult['profile'], supabase };
