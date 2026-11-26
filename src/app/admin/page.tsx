@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { AssignLabAdminCard } from './AssignLabAdminCard';
 
 export const instant = false;
 
@@ -13,6 +14,7 @@ export default async function AdminDashboardPage() {
     { count: setsCount },
     { count: usersCount },
     { data: recentCompetitions },
+    { data: labAdmins },
   ] = await Promise.all([
     supabase.from('competitions').select('*', { count: 'exact', head: true }),
     supabase.from('contest_sets').select('*', { count: 'exact', head: true }),
@@ -22,6 +24,10 @@ export default async function AdminDashboardPage() {
       .select('*, contest_sets(set_id)')
       .order('created_at', { ascending: false })
       .limit(5),
+    supabase.from('users')
+      .select('user_id, name, email, account_status')
+      .eq('role', 'MASTER_LAB_ADMIN')
+      .order('created_at', { ascending: false }),
   ]);
 
   return (
@@ -66,6 +72,9 @@ export default async function AdminDashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* Assign Lab Admin Name */}
+        <AssignLabAdminCard labAdmins={labAdmins ?? []} />
 
         {/* Recent Competitions */}
         <div className="mt-10">

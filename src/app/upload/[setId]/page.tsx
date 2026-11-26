@@ -81,7 +81,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
 
           <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800">
             <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-              Trigger HackerRank Sync
+              Auto Sync with HackerRank
             </h2>
             <SyncSetClient
               setId={set.set_id}

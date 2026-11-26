@@ -6,6 +6,7 @@ import {
   deleteCompetition,
   deleteUser,
   toggleUserStatus,
+  assignLabAdminName,
   approveUpload,
   rejectUpload,
   generateLeaderboard,
@@ -83,6 +84,7 @@ describe('Super Admin role protection', () => {
     await expect(createCompetition(fd)).rejects.toThrow('FORBIDDEN:403');
     await expect(createContestSet(fd)).rejects.toThrow('FORBIDDEN:403');
     await expect(deleteContestSet('set-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(assignLabAdminName('user-id', 'Lab Lead')).rejects.toThrow('FORBIDDEN:403');
   });
 
   it('denies unauthenticated callers via HTTP 401 unauthorized', async () => {
@@ -182,5 +184,46 @@ describe('Competition and Contest Set validation & duplicate handling', () => {
 
     const res = await createContestSet(fd);
     expect(res.error).toMatch(/Invalid HackerRank slug/i);
+  });
+
+  it('requires a non-empty name and updates MASTER_LAB_ADMIN name in assignLabAdminName', async () => {
+    mockSuperAdminSession();
+    const blankRes = await assignLabAdminName('9e7af476-abfa-44b3-87c7-dd1c85fabb96', '   ');
+    expect(blankRes.error).toMatch(/Lab Admin Name is required/i);
+
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        user_id: '9e7af476-abfa-44b3-87c7-dd1c85fabb96',
+        name: 'Old Name',
+        email: 'lab@codeclash.com',
+        role: 'MASTER_LAB_ADMIN',
+      },
+      error: null,
+    });
+    const selectEq = vi.fn().mockReturnValue({ maybeSingle });
+    const select = vi.fn().mockReturnValue({ eq: selectEq });
+    const auditInsert = vi.fn().mockResolvedValue({ error: null });
+
+    serviceClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'users') return { select, update };
+        if (table === 'audit_logs') return { insert: auditInsert };
+        return {};
+      }),
+      auth: {
+        admin: {
+          updateUserById: vi.fn().mockResolvedValue({ error: null }),
+        },
+      },
+    });
+
+    const okRes = await assignLabAdminName('9e7af476-abfa-44b3-87c7-dd1c85fabb96', 'Prof. Sharma');
+    expect(okRes.success).toBe(true);
+    expect(update).toHaveBeenCalledWith({ name: 'Prof. Sharma' });
+    expect(auditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'LAB_ADMIN_NAME_ASSIGNED' }),
+    );
   });
 });

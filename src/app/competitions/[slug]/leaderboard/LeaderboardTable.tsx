@@ -50,12 +50,13 @@ export function LeaderboardTable({
   const [isProjectorMode, setIsProjectorMode] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  // Auto-refresh timer for live projector/event displays
+  // Auto-sync timer for live leaderboard & projector displays
   useEffect(() => {
     if (!autoRefresh) return;
+    router.refresh();
     const interval = setInterval(() => {
       router.refresh();
-    }, 20000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [autoRefresh, router]);
 
@@ -128,7 +129,6 @@ export function LeaderboardTable({
       'Full Name',
       'Contest Set',
       'Total Score',
-      'Problems Solved',
       'Penalty (s)',
       'Qualification Status',
     ];
@@ -139,7 +139,6 @@ export function LeaderboardTable({
       `"${e.participant_name.replace(/"/g, '""')}"`,
       `"${e.set_name.replace(/"/g, '""')}"`,
       e.total_score,
-      e.problems_solved ?? 0,
       e.penalty ?? '',
       e.qualification_status,
     ]);
@@ -181,13 +180,13 @@ export function LeaderboardTable({
           <div className="flex items-center gap-3">
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`px-3 py-2 rounded-lg text-xs font-medium font-mono border ${
+              className={`px-3 py-2 rounded-lg text-xs font-medium font-mono border cursor-pointer ${
                 autoRefresh
                   ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                   : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white'
               }`}
             >
-              {autoRefresh ? 'Auto-sync: On (20s)' : 'Auto-sync: Off'}
+              {autoRefresh ? 'Auto Sync: On (10s) · Stop' : 'Auto Sync'}
             </button>
             <button
               onClick={toggleFullScreen}
@@ -269,9 +268,6 @@ export function LeaderboardTable({
                   </span>
                   <span className="text-xs text-zinc-500 ml-1">pts</span>
                 </div>
-                <div className="text-xs text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {podium.rank2.problems_solved ?? 0} solved
-                </div>
               </div>
             </div>
           )}
@@ -310,9 +306,6 @@ export function LeaderboardTable({
                   </span>
                   <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">pts</span>
                 </div>
-                <div className="text-xs text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {podium.rank1.problems_solved ?? 0} solved
-                </div>
               </div>
             </div>
           )}
@@ -350,9 +343,6 @@ export function LeaderboardTable({
                     {podium.rank3.total_score}
                   </span>
                   <span className="text-xs text-zinc-500 ml-1">pts</span>
-                </div>
-                <div className="text-xs text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {podium.rank3.problems_solved ?? 0} solved
                 </div>
               </div>
             </div>
@@ -449,6 +439,19 @@ export function LeaderboardTable({
             </button>
           )}
 
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+              autoRefresh
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+            title="Toggle continuous 10s leaderboard auto-sync"
+          >
+            {autoRefresh && <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+            {autoRefresh ? 'Stop Auto Sync' : 'Auto Sync'}
+          </button>
+
           {!isProjectorMode && (
             <button
               onClick={() => setIsProjectorMode(true)}
@@ -490,7 +493,6 @@ export function LeaderboardTable({
               <th className="px-6 py-4">Contestant</th>
               <th className="px-6 py-4">Contest set</th>
               <th className="px-6 py-4 text-right">Score</th>
-              <th className="px-6 py-4 text-right">Solved</th>
               <th className="px-6 py-4 text-right">Penalty</th>
               <th className="px-6 py-4 text-center">Status</th>
             </tr>
@@ -498,7 +500,7 @@ export function LeaderboardTable({
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-zinc-500 text-xs">
+                <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 text-xs">
                   No contestants match your current filters.
                 </td>
               </tr>
@@ -569,13 +571,6 @@ export function LeaderboardTable({
                     <td className="px-6 py-4 text-right">
                       <span className={`font-mono font-semibold tabular-nums ${isProjectorMode ? 'text-xl text-white' : 'text-sm text-zinc-900 dark:text-zinc-50'}`}>
                         {item.total_score}
-                      </span>
-                    </td>
-
-                    {/* Problems Solved */}
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-mono tabular-nums text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                        {item.problems_solved ?? 0}
                       </span>
                     </td>
 

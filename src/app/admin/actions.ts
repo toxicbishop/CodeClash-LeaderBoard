@@ -905,3 +905,80 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
   revalidatePath('/admin');
   return { success: true };
 }
+
+export async function assignLabAdminName(
+  userId: string,
+  labAdminName: string,
+): Promise<ActionResponse> {
+  const { user: callerUser } = await requireSuperAdmin();
+
+  if (!isValidUuid(userId)) {
+    return { error: 'Please select a valid Master Lab Admin account.' };
+  }
+
+  const trimmedName = labAdminName?.trim() ?? '';
+  if (!trimmedName) {
+    return { error: 'Lab Admin Name is required.' };
+  }
+  if (trimmedName.length > 100) {
+    return { error: 'Lab Admin Name must be 100 characters or fewer.' };
+  }
+
+  const adminClient = await createAdminClient();
+  const { data: target, error: fetchErr } = await adminClient
+    .from('users')
+    .select('user_id, name, email, role')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (fetchErr || !target) {
+    return { error: 'Master Lab Admin account not found.' };
+  }
+
+  if (target.role !== 'MASTER_LAB_ADMIN') {
+    return { error: 'Only Master Lab Admin accounts can be assigned here.' };
+  }
+
+  const { error: updateErr } = await adminClient
+    .from('users')
+    .update({ name: trimmedName })
+    .eq('user_id', userId);
+
+  if (updateErr) {
+    return { error: updateErr.message };
+  }
+
+  try {
+    await adminClient.auth.admin.updateUserById(userId, {
+      user_metadata: { name: trimmedName },
+    });
+  } catch {
+    // Best-effort auth metadata sync; public.users is authoritative
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: callerUser.id,
+    action: 'LAB_ADMIN_NAME_ASSIGNED',
+    entity_type: 'user',
+    entity_id: userId,
+    details: {
+      previous_name: target.name,
+      assigned_name: trimmedName,
+      email: target.email,
+    },
+  });
+
+  revalidatePath('/admin');
+  revalidatePath('/admin/users');
+  revalidatePath('/upload');
+  return { success: true, data: { user_id: userId, name: trimmedName } };
+}
+
+export async function assignLabAdminNameAction(
+  _prevState: ActionResponse,
+  formData: FormData,
+): Promise<ActionResponse> {
+  const userId = (formData.get('user_id') as string) ?? '';
+  const labAdminName = (formData.get('lab_admin_name') as string) ?? '';
+  return assignLabAdminName(userId, labAdminName);
+}

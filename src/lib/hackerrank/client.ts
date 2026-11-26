@@ -141,8 +141,7 @@ export async function fetchContestLeaderboard(
       res = await fetch(url, {
         headers,
         signal: AbortSignal.timeout(HACKERRANK_REQUEST_TIMEOUT_MS),
-        // Cache for 60s so the projector view doesn't hammer HR on every refresh
-        next: { revalidate: 60 },
+        cache: 'no-store',
       });
     } catch (err: unknown) {
       if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {

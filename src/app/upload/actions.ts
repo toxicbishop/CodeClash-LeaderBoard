@@ -21,14 +21,14 @@ export async function syncContestSetFromHackerRank(
   overrideSlug?: string,
   sessionCookie?: string
 ): Promise<SyncResponse> {
-  const { user, supabase } = await requireMasterLabAdmin();
+  const { user, profile, supabase } = await requireMasterLabAdmin();
 
   if (!isValidUuid(setId)) {
     return { error: 'Invalid contest set ID.' };
   }
 
-  // Rate limiting per user: 5 syncs per 60 seconds
-  const rateLimit = checkRateLimit('hr_sync', user.id, 5, 60000);
+  // Rate limiting per user: 12 syncs per 60 seconds (supports 10s auto-sync loop)
+  const rateLimit = checkRateLimit('hr_sync', user.id, 12, 60000);
   if (!rateLimit.success) {
     const waitSec = Math.max(1, Math.ceil(rateLimit.resetMs / 1000));
     return {
@@ -80,12 +80,19 @@ export async function syncContestSetFromHackerRank(
 
   const adminClient = await createAdminClient();
 
-  // Persist verified session cookie (AES-256-GCM encrypted) so future syncs don't require re-pasting
+  // Persist verified session cookie (AES-256-GCM encrypted) and Super Admin slug override if provided
   const providedCookie = sessionCookie?.replace(/[\r\n]+/g, '').trim();
-  if (providedCookie) {
+  const slugChanged =
+    Boolean(overrideSlug?.trim()) &&
+    slug !== set.hackerrank_slug &&
+    profile.role === 'SUPER_ADMIN';
+  if (providedCookie || slugChanged) {
     await adminClient
       .from('contest_sets')
-      .update({ hr_session_cookie: encryptSecret(providedCookie) })
+      .update({
+        ...(providedCookie ? { hr_session_cookie: encryptSecret(providedCookie) } : {}),
+        ...(slugChanged ? { hackerrank_slug: slug } : {}),
+      })
       .eq('set_id', setId);
   }
 

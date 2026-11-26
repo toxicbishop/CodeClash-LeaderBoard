@@ -83,10 +83,16 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Contest Sets ({sets?.length ?? 0})</h2>
               <p className="text-xs text-zinc-500 mt-0.5">Each set maps to one HackerRank contest. The Master Lab Admin syncs each one.</p>
             </div>
-            <Link href={`/admin/competitions/${competitionId}/sets/new`}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 transition-colors">
-              + Add Set
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href={`/upload?comp=${competitionId}`}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                Sync Sets →
+              </Link>
+              <Link href={`/admin/competitions/${competitionId}/sets/new`}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 transition-colors">
+                + Add Set
+              </Link>
+            </div>
           </div>
 
           {(!sets || sets.length === 0) ? (

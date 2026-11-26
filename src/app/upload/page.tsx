@@ -1,20 +1,33 @@
 import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import { logout } from '@/app/login/actions';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { isValidUuid } from '@/lib/validation/uuid';
 import Link from 'next/link';
 
 export const instant = false;
 
-export default async function UploadDashboardPage() {
-  const { profile, supabase } = await requireMasterLabAdmin();
+interface PageProps {
+  searchParams?: Promise<{ comp?: string }>;
+}
 
-  // Fetch the active competition (most recent)
-  const { data: competition } = await supabase
+export default async function UploadDashboardPage({ searchParams }: PageProps) {
+  const { profile, supabase } = await requireMasterLabAdmin();
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const requestedCompId = resolvedParams?.comp;
+
+  // Fetch all competitions so uploaders can switch between contests instead of being stuck on limit(1)
+  const { data: competitions } = await supabase
     .from('competitions')
     .select('*, contest_sets(*, uploads(upload_id, status, record_count, upload_version, uploaded_at))')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
+
+  const allCompetitions = competitions ?? [];
+  const competition =
+    (requestedCompId && isValidUuid(requestedCompId)
+      ? allCompetitions.find((c) => c.competition_id === requestedCompId)
+      : undefined) ??
+    allCompetitions[0] ??
+    null;
 
   const statusClass = (status: string) => {
     switch (status) {
@@ -65,6 +78,28 @@ export default async function UploadDashboardPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            {allCompetitions.length > 1 && (
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-zinc-500 mr-1">Competition:</span>
+                {allCompetitions.map((compItem) => {
+                  const isSelected = compItem.competition_id === competition.competition_id;
+                  return (
+                    <Link
+                      key={compItem.competition_id}
+                      href={`/upload?comp=${compItem.competition_id}`}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {compItem.competition_name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Competition card */}
             <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm">
               <div className="flex justify-between items-start">

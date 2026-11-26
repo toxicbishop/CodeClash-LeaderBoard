@@ -45,7 +45,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
   const requestedSlug = resolvedParams?.comp;
   const supabase = await createClient();
 
-  // 1. Fetch competition: either requested by query, or the active published one
+  // 1. Fetch competition: either requested by query, or the most recently published one
   let activeComp: Competition | null = null;
 
   if (requestedSlug) {
@@ -56,17 +56,59 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       .eq('status', 'PUBLISHED')
       .maybeSingle();
     activeComp = data as Competition | null;
+
+    if (!activeComp) {
+      return (
+        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col justify-between">
+          <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 h-16 flex items-center px-4 sm:px-8">
+            <Link href="/" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400">
+              Code Clash 2026
+            </Link>
+          </header>
+
+          <main className="max-w-md mx-auto p-8 text-center">
+            <svg className="size-8 mx-auto text-zinc-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+            <h1 className="text-xl font-medium">Leaderboard not published yet</h1>
+            <p className="text-xs text-zinc-500 mt-2">
+              The competition <span className="font-mono text-zinc-700 dark:text-zinc-300">{requestedSlug}</span> either does not exist or has not been published yet. Sync and approve at least one contest set, generate a snapshot, and click Publish Live.
+            </p>
+            <Link href="/leaderboard" className="mt-4 inline-block text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+              View latest published leaderboard &rarr;
+            </Link>
+          </main>
+
+          <FatFooter />
+        </div>
+      );
+    }
   }
 
   if (!activeComp) {
-    const { data: competitions } = await supabase
-      .from('competitions')
-      .select('competition_id, slug, competition_name, description, contest_date, top_k, status, created_at')
+    // Prefer the competition whose snapshot was published most recently
+    const { data: latestSnapshots } = await supabase
+      .from('leaderboard_snapshots')
+      .select('competitions!inner(competition_id, slug, competition_name, description, contest_date, top_k, status, created_at)')
       .eq('status', 'PUBLISHED')
-      .order('created_at', { ascending: false })
+      .eq('competitions.status', 'PUBLISHED')
+      .order('published_at', { ascending: false, nullsFirst: false })
       .limit(1);
 
-    activeComp = competitions?.[0] ? (competitions[0] as Competition) : null;
+    const joinedComp = latestSnapshots?.[0]?.competitions;
+    if (joinedComp) {
+      activeComp = (Array.isArray(joinedComp) ? joinedComp[0] : joinedComp) as Competition;
+    } else {
+      const { data: competitions } = await supabase
+        .from('competitions')
+        .select('competition_id, slug, competition_name, description, contest_date, top_k, status, created_at')
+        .eq('status', 'PUBLISHED')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      activeComp = competitions?.[0] ? (competitions[0] as Competition) : null;
+    }
   }
 
   if (!activeComp) {
