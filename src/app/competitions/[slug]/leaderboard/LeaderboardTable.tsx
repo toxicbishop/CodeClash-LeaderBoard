@@ -29,21 +29,33 @@ interface LeaderboardTableProps {
   sets: ContestSetItem[];
   topK: number;
   competitionName: string;
+  competitionSlug?: string;
+  snapshotVersion?: number | null;
   isDraft: boolean;
   tieBreakers?: { criterion: string; direction: string }[];
   lastUpdated?: string;
 }
 
 export function LeaderboardTable({
-  entries,
-  sets,
+  entries: initialEntries,
+  sets: initialSets,
   topK,
   competitionName,
+  competitionSlug,
+  snapshotVersion = null,
   isDraft,
-  tieBreakers,
-  lastUpdated,
+  tieBreakers: initialTieBreakers,
+  lastUpdated: initialLastUpdated,
 }: LeaderboardTableProps) {
   const router = useRouter();
+  const [entries, setEntries] = useState<LeaderboardRowItem[]>(initialEntries);
+  const [sets, setSets] = useState<ContestSetItem[]>(initialSets);
+  const [tieBreakers, setTieBreakers] = useState<{ criterion: string; direction: string }[] | undefined>(
+    initialTieBreakers,
+  );
+  const [lastUpdated, setLastUpdated] = useState<string | undefined>(initialLastUpdated);
+  const versionRef = useRef<number | null>(snapshotVersion);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSetId, setSelectedSetId] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'QUALIFIED' | 'BOUNDARY'>('ALL');
@@ -84,14 +96,53 @@ export function LeaderboardTable({
     };
   }, [entries]);
 
-  // Auto-sync timer for live leaderboard & projector displays (every 20s)
+  // Lightweight versioned JSON polling every 20s (avoids full-page RSC refresh unless ended)
   useEffect(() => {
     if (!autoRefresh) return;
+
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      try {
+        const params = new URLSearchParams();
+        if (competitionSlug) params.set('comp', competitionSlug);
+        if (versionRef.current !== null) params.set('version', String(versionRef.current));
+
+        const res = await fetch(`/api/leaderboard?${params.toString()}`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+
+        const payload = (await res.json()) as {
+          unchanged?: boolean;
+          status?: string;
+          snapshot?: { version: number; published_at: string | null; generated_at: string } | null;
+          sets?: ContestSetItem[];
+          tieBreakers?: { criterion: string; direction: string }[];
+          entries?: LeaderboardRowItem[];
+        };
+
+        if (payload.unchanged) return;
+
+        if (payload.status !== 'PUBLISHED' || !payload.snapshot) {
+          router.refresh();
+          return;
+        }
+
+        versionRef.current = payload.snapshot.version;
+        if (payload.entries) setEntries(payload.entries);
+        if (payload.sets) setSets(payload.sets);
+        if (payload.tieBreakers) setTieBreakers(payload.tieBreakers);
+        setLastUpdated(payload.snapshot.published_at || payload.snapshot.generated_at);
+      } catch {
+        // Ignore transient network errors and retry on next 20s tick
+      }
+    };
+
     const interval = setInterval(() => {
-      router.refresh();
+      void poll();
     }, 20000);
     return () => clearInterval(interval);
-  }, [autoRefresh, router]);
+  }, [autoRefresh, competitionSlug, router]);
 
   // Fullscreen helper
   function toggleFullScreen() {

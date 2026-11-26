@@ -28,6 +28,25 @@ export async function createClient() {
 }
 
 /**
+ * Cookie-free public anon client for `'use cache'` functions and public reads.
+ * Enforces public RLS policies without accessing runtime `cookies()`.
+ */
+export function createPublicClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll() {},
+      },
+    }
+  );
+}
+
+/**
  * Service-role admin client for elevated backend tasks
  * (e.g. creating user accounts without sending email invites, system consolidation)
  */

@@ -1,6 +1,7 @@
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { computeRankings } from '@/lib/ranking/engine';
+import { LEADERBOARD_CACHE_TAG } from '@/lib/leaderboard/cache';
 import type { TieBreakerRule } from '@/types/database';
 
 export interface SnapshotResult {
@@ -201,6 +202,7 @@ export async function createCompetitionSnapshot(
   revalidatePath(`/admin/competitions/${competitionId}`);
   revalidatePath('/monitor');
   if (options.publishImmediately) {
+    updateTag(LEADERBOARD_CACHE_TAG);
     revalidatePath('/leaderboard');
   }
 
