@@ -109,6 +109,8 @@ export async function fetchContestLeaderboard(
   const headers: Record<string, string> = {
     'Accept': 'application/json',
     'User-Agent': 'CodeClash-Leaderboard/2.0',
+    'Cache-Control': 'no-cache, no-store',
+    'Pragma': 'no-cache',
   };
   if (sessionCookie) {
     const cleanCookie = sessionCookie.replace(/[\r\n]+/g, '').trim();
@@ -129,6 +131,7 @@ export async function fetchContestLeaderboard(
     const targetUrl = new URL(`/rest/contests/${safeSlug}/leaderboard`, 'https://www.hackerrank.com');
     targetUrl.searchParams.set('offset', offset.toString());
     targetUrl.searchParams.set('limit', '100');
+    targetUrl.searchParams.set('_', Date.now().toString());
 
     if (targetUrl.hostname !== 'www.hackerrank.com' || targetUrl.protocol !== 'https:') {
       throw new HackerRankError('Invalid URL destination', 400, trimmedSlug);
@@ -185,8 +188,18 @@ export async function fetchContestLeaderboard(
       total: number;
     };
 
-    total = json.total ?? 0;
-    allEntries.push(...(json.models ?? []));
+    total = Number(json.total ?? 0);
+    const normalizedModels = (json.models ?? []).map((m) => ({
+      ...m,
+      rank: Number(m.rank ?? 0),
+      score: Number(m.score ?? 0),
+      time_taken: m.time_taken !== undefined && m.time_taken !== null ? Number(m.time_taken) : 0,
+      solved_challenges:
+        m.solved_challenges !== undefined && m.solved_challenges !== null
+          ? Number(m.solved_challenges)
+          : 0,
+    }));
+    allEntries.push(...normalizedModels);
     page++;
 
   } while (allEntries.length < total && page < MAX_HACKERRANK_PAGES);

@@ -285,20 +285,15 @@ export async function approveUpload(uploadId: string): Promise<ActionResponse> {
     return { error: 'Invalid upload ID.' };
   }
 
-  // 1. Fetch current upload record and competition status
+  // 1. Fetch current upload record
   const { data: targetUpload, error: fetchErr } = await supabase
     .from('uploads')
-    .select('upload_id, set_id, competition_id, status, competitions(status)')
+    .select('upload_id, set_id, competition_id, status')
     .eq('upload_id', uploadId)
     .maybeSingle();
 
   if (fetchErr || !targetUpload) {
     return { error: 'Upload not found.' };
-  }
-
-  const compStatus = (targetUpload.competitions as unknown as { status: string })?.status;
-  if (compStatus === 'PUBLISHED') {
-    return { error: 'Cannot approve uploads for a published competition.' };
   }
 
   if (targetUpload.status !== 'PENDING_APPROVAL') {
@@ -354,9 +349,12 @@ export async function approveUpload(uploadId: string): Promise<ActionResponse> {
         .eq('competition_id', targetUpload.competition_id)
         .neq('status', 'PUBLISHED');
     }
+
+    revalidatePath(`/admin/competitions/${targetUpload.competition_id}`);
   }
 
   revalidatePath('/admin');
+  revalidatePath('/upload');
   return { success: true };
 }
 
@@ -369,20 +367,15 @@ export async function rejectUpload(uploadId: string, reason: string): Promise<Ac
 
   if (!reason?.trim()) return { error: 'A rejection reason is required.' };
 
-  // 1. Fetch current upload record and competition status
+  // 1. Fetch current upload record
   const { data: targetUpload, error: fetchErr } = await supabase
     .from('uploads')
-    .select('upload_id, status, competitions(status)')
+    .select('upload_id, competition_id, status')
     .eq('upload_id', uploadId)
     .maybeSingle();
 
   if (fetchErr || !targetUpload) {
     return { error: 'Upload not found.' };
-  }
-
-  const compStatus = (targetUpload.competitions as unknown as { status: string })?.status;
-  if (compStatus === 'PUBLISHED') {
-    return { error: 'Cannot reject uploads for a published competition.' };
   }
 
   if (targetUpload.status !== 'PENDING_APPROVAL') {
@@ -410,7 +403,11 @@ export async function rejectUpload(uploadId: string, reason: string): Promise<Ac
     details: { reason: reason.trim() },
   });
 
+  if (targetUpload.competition_id) {
+    revalidatePath(`/admin/competitions/${targetUpload.competition_id}`);
+  }
   revalidatePath('/admin');
+  revalidatePath('/upload');
   return { success: true };
 }
 

@@ -14,6 +14,7 @@ export type SyncResponse = {
   error?: string | null;
   recordsCount?: number;
   warningsCount?: number;
+  unchanged?: boolean;
 };
 
 export async function syncContestSetFromHackerRank(
@@ -101,14 +102,34 @@ export async function syncContestSetFromHackerRank(
   // 3. Validate entries
   const { valid, errors, duplicateHandles } = validateHackerRankEntries(entries);
 
-  // 4. Determine next version
+  // 4. Determine next version & skip redundant upload rows when auto-sync sees no changes
+  const contentHash = valid
+    .map((v) => `${v.hacker.trim().toLowerCase()}:${v.score}:${v.time_taken ?? 0}:${v.solved_challenges ?? 0}`)
+    .sort()
+    .join('|');
+
   const { data: lastUpload } = await supabase
     .from('uploads')
-    .select('upload_version')
+    .select('upload_version, status, record_count, sync_metadata')
     .eq('set_id', setId)
     .order('upload_version', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  const lastMeta = lastUpload?.sync_metadata as { content_hash?: string } | null;
+  if (
+    lastUpload &&
+    errors.length === 0 &&
+    (lastUpload.status === 'PENDING_APPROVAL' || lastUpload.status === 'APPROVED') &&
+    lastMeta?.content_hash === contentHash
+  ) {
+    return {
+      success: true,
+      recordsCount: valid.length,
+      warningsCount: 0,
+      unchanged: true,
+    };
+  }
 
   const nextVersion = (lastUpload?.upload_version ?? 0) + 1;
   const status = errors.length > 0 ? 'VALIDATION_FAILED' : 'PENDING_APPROVAL';
@@ -149,7 +170,12 @@ export async function syncContestSetFromHackerRank(
       upload_version: nextVersion,
       status,
       record_count: valid.length,
-      sync_metadata: { total, fetched_count: entries.length, duplicates_in_set: duplicateHandles },
+      sync_metadata: {
+        total,
+        fetched_count: entries.length,
+        duplicates_in_set: duplicateHandles,
+        content_hash: contentHash,
+      },
       validation_errors: errors.length > 0 ? errors : null,
       collision_flags: collisions.length > 0 ? collisions : null,
     })

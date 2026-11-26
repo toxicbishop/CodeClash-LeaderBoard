@@ -158,7 +158,7 @@ describe('Competition and Contest Set validation & duplicate handling', () => {
     mockSuperAdminSession({ contest_sets: { insert: insertMock } });
 
     const fd = new FormData();
-    fd.set('competition_id', '9e7af476-abfa-44b3-87c7-dd1c85fabb96');
+    fd.set('competition_id', crypto.randomUUID());
     fd.set('set_name', 'Set A');
     fd.set('set_code', 'setA');
     fd.set('hackerrank_slug', 'https://www.hackerrank.com/contests/friends-contest/leaderboard');
@@ -177,7 +177,7 @@ describe('Competition and Contest Set validation & duplicate handling', () => {
     mockSuperAdminSession();
 
     const fd = new FormData();
-    fd.set('competition_id', '9e7af476-abfa-44b3-87c7-dd1c85fabb96');
+    fd.set('competition_id', crypto.randomUUID());
     fd.set('set_name', 'Set B');
     fd.set('set_code', 'setB');
     fd.set('hackerrank_slug', 'https://evil.example.com/contests/hack');
@@ -187,15 +187,16 @@ describe('Competition and Contest Set validation & duplicate handling', () => {
   });
 
   it('requires a non-empty name and updates MASTER_LAB_ADMIN name in assignLabAdminName', async () => {
+    const labUserId = crypto.randomUUID();
     mockSuperAdminSession();
-    const blankRes = await assignLabAdminName('9e7af476-abfa-44b3-87c7-dd1c85fabb96', '   ');
+    const blankRes = await assignLabAdminName(labUserId, '   ');
     expect(blankRes.error).toMatch(/Lab Admin Name is required/i);
 
     const updateEq = vi.fn().mockResolvedValue({ error: null });
     const update = vi.fn().mockReturnValue({ eq: updateEq });
     const maybeSingle = vi.fn().mockResolvedValue({
       data: {
-        user_id: '9e7af476-abfa-44b3-87c7-dd1c85fabb96',
+        user_id: labUserId,
         name: 'Old Name',
         email: 'lab@codeclash.com',
         role: 'MASTER_LAB_ADMIN',
@@ -219,11 +220,73 @@ describe('Competition and Contest Set validation & duplicate handling', () => {
       },
     });
 
-    const okRes = await assignLabAdminName('9e7af476-abfa-44b3-87c7-dd1c85fabb96', 'Prof. Sharma');
+    const okRes = await assignLabAdminName(labUserId, 'Prof. Sharma');
     expect(okRes.success).toBe(true);
     expect(update).toHaveBeenCalledWith({ name: 'Prof. Sharma' });
     expect(auditInsert).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'LAB_ADMIN_NAME_ASSIGNED' }),
     );
+  });
+
+  it('allows approving and rejecting PENDING_APPROVAL uploads even when competition is PUBLISHED', async () => {
+    const uploadId = crypto.randomUUID();
+    const setId = crypto.randomUUID();
+    const compId = crypto.randomUUID();
+
+    const uploadMaybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        upload_id: uploadId,
+        set_id: setId,
+        competition_id: compId,
+        status: 'PENDING_APPROVAL',
+      },
+      error: null,
+    });
+
+    mockSuperAdminSession({
+      uploads: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({ maybeSingle: uploadMaybeSingle }),
+        }),
+      },
+    });
+
+    const uploadsUpdateEq = vi.fn().mockResolvedValue({ error: null });
+    const uploadsUpdateChain = {
+      eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+    };
+    const uploadsUpdate = vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+      if (payload.status === 'SUPERSEDED') return uploadsUpdateChain;
+      return { eq: uploadsUpdateEq };
+    });
+
+    const compNeq = vi.fn().mockResolvedValue({ error: null });
+    const compEq = vi.fn().mockReturnValue({ neq: compNeq });
+    const compUpdate = vi.fn().mockReturnValue({ eq: compEq });
+
+    serviceClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'uploads') return { update: uploadsUpdate };
+        if (table === 'contest_sets') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                data: [{ set_id: setId, uploads: [{ status: 'APPROVED' }] }],
+              }),
+            }),
+          };
+        }
+        if (table === 'competitions') return { update: compUpdate };
+        if (table === 'audit_logs') return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        return {};
+      }),
+    });
+
+    const approveRes = await approveUpload(uploadId);
+    expect(approveRes.success).toBe(true);
+    expect(compNeq).toHaveBeenCalledWith('status', 'PUBLISHED');
+
+    const rejectRes = await rejectUpload(uploadId, 'Needs re-sync');
+    expect(rejectRes.success).toBe(true);
   });
 });

@@ -70,7 +70,9 @@ export default function SyncSetClient({ setId, defaultSlug, hasSavedCookie = fal
       setSyncCount((c) => c + 1);
       setLastSyncedAt(new Date().toLocaleTimeString());
       setMessage({
-        text: `Synced ${res.recordsCount} participants from HackerRank.`,
+        text: res.unchanged
+          ? `Up to date — ${res.recordsCount} participants (no new changes on HackerRank).`
+          : `Synced ${res.recordsCount} participants from HackerRank.${res.warningsCount ? ` (${res.warningsCount} warning(s))` : ''}`,
         type: 'success',
       });
       router.refresh();

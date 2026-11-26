@@ -103,7 +103,6 @@ export default async function UploadReviewPage({ params }: PageProps) {
                   <tr>
                     <th className="px-4 py-3">Hacker Username</th>
                     <th className="px-4 py-3">Total Score</th>
-                    <th className="px-4 py-3">Problems Solved</th>
                     <th className="px-4 py-3">Penalty / Time</th>
                     <th className="px-4 py-3">Collision Flag</th>
                   </tr>
@@ -112,7 +111,6 @@ export default async function UploadReviewPage({ params }: PageProps) {
                   {participants.map((p) => {
                     const res = (p.results as unknown as Array<{
                       total_score: number;
-                      problems_solved: number | null;
                       penalty: number | null;
                     }>)?.[0];
                     return (
@@ -122,9 +120,6 @@ export default async function UploadReviewPage({ params }: PageProps) {
                         </td>
                         <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">
                           {res?.total_score ?? '—'}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
-                          {res?.problems_solved ?? '—'}
                         </td>
                         <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
                           {res?.penalty ?? '—'}s
