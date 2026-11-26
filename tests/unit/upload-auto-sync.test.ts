@@ -25,7 +25,7 @@ vi.mock('@/lib/leaderboard/publish', () => ({
   createCompetitionSnapshot: publishSnapshotMock,
 }));
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock('next/server', () => ({ connection: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {

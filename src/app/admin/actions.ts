@@ -1,10 +1,11 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { createCompetitionSnapshot } from '@/lib/leaderboard/publish';
+import { LEADERBOARD_CACHE_TAG } from '@/lib/leaderboard/cache';
 import { extractContestSlug } from '@/lib/hackerrank/client';
 import { isValidUuid } from '@/lib/validation/uuid';
 import { isAllowedProvisionRole, validatePasswordPolicy, ALLOWED_PROVISION_ROLES } from '@/lib/security/password';
@@ -131,6 +132,7 @@ export async function deleteCompetition(competitionId: string): Promise<ActionRe
 
   revalidatePath('/admin');
   revalidatePath('/admin/competitions');
+  updateTag(LEADERBOARD_CACHE_TAG);
   revalidatePath('/leaderboard');
   revalidatePath('/monitor');
   revalidatePath('/upload');
@@ -644,6 +646,7 @@ export async function publishLeaderboard(snapshotId: string): Promise<ActionResp
 
   revalidatePath(`/admin/competitions/${snapshot.competition_id}`);
   revalidatePath('/monitor');
+  updateTag(LEADERBOARD_CACHE_TAG);
   revalidatePath('/leaderboard');
   return { success: true };
 }
@@ -701,6 +704,7 @@ export async function endLeaderboard(competitionId: string): Promise<ActionRespo
   revalidatePath('/admin/competitions');
   revalidatePath(`/admin/competitions/${competitionId}`);
   revalidatePath('/monitor');
+  updateTag(LEADERBOARD_CACHE_TAG);
   revalidatePath('/leaderboard');
   return { success: true };
 }
@@ -789,6 +793,7 @@ export async function saveTieBreakerRules(
 
   revalidatePath(`/admin/competitions/${competitionId}`);
   revalidatePath(`/admin/competitions/${competitionId}/rules`);
+  updateTag(LEADERBOARD_CACHE_TAG);
   revalidatePath('/leaderboard');
   return { success: true };
 }
