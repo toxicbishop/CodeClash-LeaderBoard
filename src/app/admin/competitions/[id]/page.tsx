@@ -5,6 +5,7 @@ import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { LeaderboardControlPanel, Snapshot } from './LeaderboardControlPanel';
 import { DeleteCompetitionButton } from '../DeleteCompetitionButton';
+import { DeleteSetButton } from './DeleteSetButton';
 
 export const instant = false;
 
@@ -153,6 +154,11 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                               Review →
                             </Link>
                           )}
+                          <DeleteSetButton
+                            setId={set.set_id}
+                            setName={set.set_name}
+                            setCode={set.set_code}
+                          />
                         </td>
                       </tr>
                     );

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createCompetition,
   createContestSet,
+  deleteContestSet,
   deleteCompetition,
   deleteUser,
   toggleUserStatus,
@@ -81,6 +82,7 @@ describe('Super Admin role protection', () => {
     const fd = new FormData();
     await expect(createCompetition(fd)).rejects.toThrow('FORBIDDEN:403');
     await expect(createContestSet(fd)).rejects.toThrow('FORBIDDEN:403');
+    await expect(deleteContestSet('set-id')).rejects.toThrow('FORBIDDEN:403');
   });
 
   it('denies unauthenticated callers via HTTP 401 unauthorized', async () => {
@@ -91,5 +93,94 @@ describe('Super Admin role protection', () => {
 
     await expect(approveUpload('some-upload-id')).rejects.toThrow('UNAUTHORIZED:401');
     await expect(deleteCompetition('comp-id')).rejects.toThrow('UNAUTHORIZED:401');
+    await expect(deleteContestSet('set-id')).rejects.toThrow('UNAUTHORIZED:401');
+  });
+});
+
+describe('Competition and Contest Set validation & duplicate handling', () => {
+  function mockSuperAdminSession(extraTables: Record<string, unknown> = {}) {
+    const readProfile = {
+      single: async () => ({
+        data: {
+          name: 'Super Admin',
+          email: 'admin@codeclash.com',
+          role: 'SUPER_ADMIN',
+          account_status: 'ACTIVE',
+        },
+      }),
+    };
+    const filterStatus = vi.fn().mockReturnValue(readProfile);
+    const filterId = vi.fn().mockReturnValue({ eq: filterStatus });
+    const select = vi.fn().mockReturnValue({ eq: filterId });
+    const from = vi.fn((table: string) => {
+      if (table in extraTables) return extraTables[table];
+      return { select };
+    });
+
+    sessionClient.mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: { id: 'test-user-id' } } }) },
+      from,
+    });
+  }
+
+  it('returns an inline error instead of throwing on duplicate competition slug', async () => {
+    const insertSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "competitions_slug_key"',
+      },
+    });
+    const insertSelect = vi.fn().mockReturnValue({ single: insertSingle });
+    const insert = vi.fn().mockReturnValue({ select: insertSelect });
+
+    mockSuperAdminSession({ competitions: { insert } });
+
+    const fd = new FormData();
+    fd.set('competition_name', 'Code Clash 2026');
+    fd.set('contest_date', '2026-11-26');
+    fd.set('top_k', '10');
+
+    const res = await createCompetition(fd);
+    expect(res.error).toMatch(/slug "code-clash-2026" already exists/i);
+  });
+
+  it('returns an inline error on duplicate contest set code and extracts HackerRank URLs', async () => {
+    const insertMock = vi.fn().mockResolvedValue({
+      error: {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "contest_sets_competition_id_set_code_key"',
+      },
+    });
+
+    mockSuperAdminSession({ contest_sets: { insert: insertMock } });
+
+    const fd = new FormData();
+    fd.set('competition_id', '9e7af476-abfa-44b3-87c7-dd1c85fabb96');
+    fd.set('set_name', 'Set A');
+    fd.set('set_code', 'setA');
+    fd.set('hackerrank_slug', 'https://www.hackerrank.com/contests/friends-contest/leaderboard');
+
+    const res = await createContestSet(fd);
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set_code: 'seta',
+        hackerrank_slug: 'friends-contest',
+      }),
+    );
+    expect(res.error).toMatch(/code "seta" already exists/i);
+  });
+
+  it('returns an inline error for non-HackerRank URLs in createContestSet', async () => {
+    mockSuperAdminSession();
+
+    const fd = new FormData();
+    fd.set('competition_id', '9e7af476-abfa-44b3-87c7-dd1c85fabb96');
+    fd.set('set_name', 'Set B');
+    fd.set('set_code', 'setB');
+    fd.set('hackerrank_slug', 'https://evil.example.com/contests/hack');
+
+    const res = await createContestSet(fd);
+    expect(res.error).toMatch(/Invalid HackerRank slug/i);
   });
 });

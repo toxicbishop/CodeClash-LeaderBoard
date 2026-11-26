@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/server';
-import { fetchContestLeaderboard, HackerRankError, isValidContestSlug } from '@/lib/hackerrank/client';
+import { extractContestSlug, fetchContestLeaderboard, HackerRankError } from '@/lib/hackerrank/client';
 import { validateHackerRankEntries } from '@/lib/hackerrank/validate';
 import { isValidUuid } from '@/lib/validation/uuid';
 import { decryptSecret, encryptSecret } from '@/lib/security/encryption';
@@ -47,13 +47,13 @@ export async function syncContestSetFromHackerRank(
     return { error: 'Contest set not found.' };
   }
 
-  const rawSlug = (overrideSlug?.trim() || set.hackerrank_slug || '').trim();
-  if (!isValidContestSlug(rawSlug)) {
+  const rawSlugInput = (overrideSlug?.trim() || set.hackerrank_slug || '').trim();
+  const slug = extractContestSlug(rawSlugInput);
+  if (!slug) {
     return {
-      error: `Invalid HackerRank contest slug: "${rawSlug}". Slugs must contain only alphanumeric characters, hyphens, and underscores.`,
+      error: `Invalid HackerRank contest slug: "${rawSlugInput}". Enter the contest slug (e.g. codeclash-2026-setA) or a valid hackerrank.com/contests/<slug> URL.`,
     };
   }
-  const slug = rawSlug;
 
   // Decrypt stored session cookie if present, never log it
   let cookie: string | undefined = undefined;

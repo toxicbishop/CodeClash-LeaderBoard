@@ -53,6 +53,41 @@ export function isValidContestSlug(slug: unknown): slug is string {
 }
 
 /**
+ * Extracts a safe HackerRank contest slug from either a raw slug
+ * (e.g. "codeclash-2026-setA") or a HackerRank contest URL
+ * (e.g. "https://www.hackerrank.com/contests/codeclash-2026-setA/leaderboard").
+ * Returns null for invalid slugs or non-HackerRank URLs.
+ */
+export function extractContestSlug(input: unknown): string | null {
+  if (typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (isValidContestSlug(trimmed)) {
+    return trimmed;
+  }
+
+  // Only attempt URL extraction when the input looks like a HackerRank contest URL
+  if (/^(?:https?:\/\/)?(?:www\.)?hackerrank\.com\/contests\//i.test(trimmed)) {
+    try {
+      const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+      const parsed = new URL(normalizedUrl);
+      if (parsed.hostname !== 'www.hackerrank.com' && parsed.hostname !== 'hackerrank.com') {
+        return null;
+      }
+      const match = parsed.pathname.match(/^\/contests\/([a-zA-Z0-9_-]+)(?:\/.*)?$/);
+      if (match && isValidContestSlug(match[1])) {
+        return match[1];
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Fetch the full leaderboard for a HackerRank contest.
  *
  * @param slug           Contest slug, e.g. "codeclash-2026-setA"

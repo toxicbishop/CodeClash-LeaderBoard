@@ -60,15 +60,13 @@ export default function SyncSetClient({ setId, defaultSlug, hasSavedCookie = fal
           HackerRank Contest Slug
         </label>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          The unique contest identifier from the URL: hackerrank.com/contests/[slug]
+          Enter the slug from hackerrank.com/contests/[slug] or paste the full contest URL
         </p>
         <input
           type="text"
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
           required
-          pattern="[a-zA-Z0-9_-]+"
-          title="Slugs may only contain letters, numbers, hyphens, and underscores."
           className="mt-1.5 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           placeholder="e.g. codeclash-2026-setA"
         />

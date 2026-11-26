@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   isValidContestSlug,
+  extractContestSlug,
   fetchContestLeaderboard,
   HackerRankError,
 } from '@/lib/hackerrank/client';
@@ -43,6 +44,28 @@ describe('HackerRank Client SSRF Protection and Slug Validation', () => {
       expect(isValidContestSlug('code clash')).toBe(false);
       expect(isValidContestSlug(null)).toBe(false);
       expect(isValidContestSlug(undefined)).toBe(false);
+    });
+  });
+
+  describe('extractContestSlug', () => {
+    it('returns valid raw slugs unchanged', () => {
+      expect(extractContestSlug('  codeclash-2026-setA  ')).toBe('codeclash-2026-setA');
+      expect(extractContestSlug('contest_123')).toBe('contest_123');
+    });
+
+    it('extracts slugs from hackerrank.com contest URLs', () => {
+      expect(extractContestSlug('https://www.hackerrank.com/contests/my-contest')).toBe('my-contest');
+      expect(extractContestSlug('https://www.hackerrank.com/contests/my-contest/leaderboard')).toBe('my-contest');
+      expect(extractContestSlug('https://hackerrank.com/contests/round_2/challenges?h_r=internal')).toBe('round_2');
+      expect(extractContestSlug('www.hackerrank.com/contests/demo-slug')).toBe('demo-slug');
+    });
+
+    it('rejects non-HackerRank URLs, traversal, and invalid paths', () => {
+      expect(extractContestSlug('https://evil.com/contests/my-contest')).toBeNull();
+      expect(extractContestSlug('https://www.hackerrank.com/domains/algorithms')).toBeNull();
+      expect(extractContestSlug('https://www.hackerrank.com/contests/')).toBeNull();
+      expect(extractContestSlug('../../../etc/passwd')).toBeNull();
+      expect(extractContestSlug('')).toBeNull();
     });
   });
 

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { computeRankings } from '@/lib/ranking/engine';
-import { isValidContestSlug } from '@/lib/hackerrank/client';
+import { extractContestSlug } from '@/lib/hackerrank/client';
 import { isValidUuid } from '@/lib/validation/uuid';
 import { isAllowedProvisionRole, validatePasswordPolicy, ALLOWED_PROVISION_ROLES } from '@/lib/security/password';
 import { encryptSecret } from '@/lib/security/encryption';
@@ -21,7 +21,7 @@ export type ActionResponse = {
 // Competition management
 // ---------------------------------------------------------------------------
 
-export async function createCompetition(formData: FormData): Promise<void> {
+export async function createCompetition(formData: FormData): Promise<ActionResponse> {
   const { supabase, user } = await requireSuperAdmin();
 
   const name = formData.get('competition_name') as string;
@@ -30,10 +30,13 @@ export async function createCompetition(formData: FormData): Promise<void> {
   const topK = parseInt(formData.get('top_k') as string, 10);
 
   if (!name?.trim() || !contestDate || isNaN(topK) || topK < 1) {
-    throw new Error('Competition name, contest date, and a positive Top-K value are required.');
+    return { error: 'Competition name, contest date, and a positive Top-K value are required.' };
   }
 
   const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!slug) {
+    return { error: 'Competition name must include at least one letter or number.' };
+  }
 
   const { data, error } = await supabase.from('competitions').insert({
     slug,
@@ -45,7 +48,12 @@ export async function createCompetition(formData: FormData): Promise<void> {
   }).select('competition_id').single();
 
   if (error || !data) {
-    throw new Error(error?.message || 'Failed to create competition');
+    if (error?.code === '23505' || error?.message?.includes('competitions_slug_key')) {
+      return {
+        error: `A competition with slug "${slug}" already exists. Choose a different name or manage the existing competition.`,
+      };
+    }
+    return { error: error?.message || 'Failed to create competition.' };
   }
 
   // Seed default tie-breaker rules
@@ -63,6 +71,13 @@ export async function createCompetition(formData: FormData): Promise<void> {
 
   revalidatePath('/admin/competitions');
   redirect(`/admin/competitions/${data.competition_id}`);
+}
+
+export async function createCompetitionAction(
+  _prevState: ActionResponse,
+  formData: FormData,
+): Promise<ActionResponse> {
+  return createCompetition(formData);
 }
 
 export async function deleteCompetition(competitionId: string): Promise<ActionResponse> {
@@ -127,7 +142,7 @@ export async function deleteCompetition(competitionId: string): Promise<ActionRe
 // Contest set management
 // ---------------------------------------------------------------------------
 
-export async function createContestSet(formData: FormData): Promise<void> {
+export async function createContestSet(formData: FormData): Promise<ActionResponse> {
   const { supabase, user } = await requireSuperAdmin();
 
   const competitionId = formData.get('competition_id') as string;
@@ -139,38 +154,124 @@ export async function createContestSet(formData: FormData): Promise<void> {
     .trim();
 
   if (!competitionId || !setName?.trim() || !setCode?.trim() || !hackerrankSlug?.trim()) {
-    throw new Error('Competition ID, set name, set code, and HackerRank slug are all required.');
+    return { error: 'Competition ID, set name, set code, and HackerRank slug are all required.' };
   }
 
   if (!isValidUuid(competitionId)) {
-    throw new Error('Invalid competition ID.');
+    return { error: 'Invalid competition ID.' };
   }
 
-  const trimmedSlug = hackerrankSlug.trim();
-  if (!isValidContestSlug(trimmedSlug)) {
-    throw new Error('Invalid HackerRank slug. Slugs may only contain alphanumeric characters, hyphens, and underscores.');
+  const normalizedSetCode = setCode.trim().toLowerCase();
+  if (normalizedSetCode.length > 20) {
+    return { error: 'Set code must be 20 characters or fewer.' };
+  }
+
+  const extractedSlug = extractContestSlug(hackerrankSlug);
+  if (!extractedSlug) {
+    return {
+      error:
+        'Invalid HackerRank slug. Enter the contest slug (e.g. codeclash-2026-setA) or a valid hackerrank.com/contests/<slug> URL.',
+    };
   }
 
   const { error } = await supabase.from('contest_sets').insert({
     competition_id: competitionId,
     set_name: setName.trim(),
-    set_code: setCode.trim().toLowerCase(),
-    hackerrank_slug: trimmedSlug,
+    set_code: normalizedSetCode,
+    hackerrank_slug: extractedSlug,
     ...(rawCookie ? { hr_session_cookie: encryptSecret(rawCookie) } : {}),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505' || error.message.includes('contest_sets_competition_id_set_code_key')) {
+      return {
+        error: `A contest set with code "${normalizedSetCode}" already exists in this competition. Use a different Set Code (e.g. setB) or delete the existing set first.`,
+      };
+    }
+    return { error: error.message };
+  }
 
   const adminClient = await createAdminClient();
   await adminClient.from('audit_logs').insert({
     user_id: user.id,
     action: 'CONTEST_SET_CREATED',
     entity_type: 'contest_set',
-    details: { set_name: setName, hackerrank_slug: hackerrankSlug },
+    details: { set_name: setName.trim(), set_code: normalizedSetCode, hackerrank_slug: extractedSlug },
   });
 
   revalidatePath(`/admin/competitions/${competitionId}`);
+  revalidatePath('/upload');
   redirect(`/admin/competitions/${competitionId}`);
+}
+
+export async function createContestSetAction(
+  _prevState: ActionResponse,
+  formData: FormData,
+): Promise<ActionResponse> {
+  return createContestSet(formData);
+}
+
+export async function deleteContestSet(setId: string): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(setId)) {
+    return { error: 'Invalid contest set ID.' };
+  }
+
+  const adminClient = await createAdminClient();
+
+  const { data: targetSet, error: fetchErr } = await adminClient
+    .from('contest_sets')
+    .select('set_id, competition_id, set_name, set_code, hackerrank_slug')
+    .eq('set_id', setId)
+    .maybeSingle();
+
+  if (fetchErr || !targetSet) {
+    return { error: 'Contest set not found.' };
+  }
+
+  const { count: referencedEntries, error: entryCheckErr } = await adminClient
+    .from('leaderboard_entries')
+    .select('entry_id', { count: 'exact', head: true })
+    .eq('set_id', setId);
+
+  if (entryCheckErr) {
+    return { error: `Failed to check leaderboard snapshot references: ${entryCheckErr.message}` };
+  }
+
+  if ((referencedEntries ?? 0) > 0) {
+    return {
+      error:
+        'Cannot delete this contest set because it is referenced by existing leaderboard snapshots. Delete the competition if you need to reset it.',
+    };
+  }
+
+  const { error: delErr } = await adminClient
+    .from('contest_sets')
+    .delete()
+    .eq('set_id', setId);
+
+  if (delErr) {
+    return { error: `Failed to delete contest set: ${delErr.message}` };
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'CONTEST_SET_DELETED',
+    entity_type: 'contest_set',
+    entity_id: setId,
+    details: {
+      competition_id: targetSet.competition_id,
+      set_name: targetSet.set_name,
+      set_code: targetSet.set_code,
+      hackerrank_slug: targetSet.hackerrank_slug,
+    },
+  });
+
+  revalidatePath(`/admin/competitions/${targetSet.competition_id}`);
+  revalidatePath('/admin/competitions');
+  revalidatePath('/upload');
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------
