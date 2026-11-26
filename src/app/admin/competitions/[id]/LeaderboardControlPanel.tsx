@@ -117,29 +117,12 @@ export function LeaderboardControlPanel({
 
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={`/admin/competitions/${competitionId}/rules`}
-            className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            Configure tiebreakers
-          </Link>
-
-          <Link
             href={`/leaderboard?comp=${competitionSlug}`}
             target="_blank"
-            className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
           >
             Public leaderboard &rarr;
           </Link>
-
-          <button
-            type="button"
-            disabled={isPending || !hasApprovedUploads}
-            onClick={handleGenerate}
-            className="px-4 py-2 text-xs font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors cursor-pointer"
-            title={!hasApprovedUploads ? 'At least one set upload must be APPROVED before generating' : ''}
-          >
-            {isPending ? 'Processing...' : 'Generate snapshot'}
-          </button>
 
           {isLive && (
             <button
@@ -153,6 +136,31 @@ export function LeaderboardControlPanel({
           )}
         </div>
       </div>
+
+      {/* Collapsible Manual Controls */}
+      <details className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 text-xs">
+        <summary className="cursor-pointer font-medium text-zinc-600 dark:text-zinc-300 select-none">
+          Manual Snapshot &amp; Tiebreaker Controls
+        </summary>
+        <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-2">
+          <Link
+            href={`/admin/competitions/${competitionId}/rules`}
+            className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            Configure tiebreakers
+          </Link>
+
+          <button
+            type="button"
+            disabled={isPending || !hasApprovedUploads}
+            onClick={handleGenerate}
+            className="px-4 py-2 text-xs font-medium rounded-lg text-white bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors cursor-pointer"
+            title={!hasApprovedUploads ? 'At least one set upload must be APPROVED before generating' : ''}
+          >
+            {isPending ? 'Processing...' : 'Generate manual snapshot'}
+          </button>
+        </div>
+      </details>
 
       {/* Snapshots Table */}
       {snapshots.length === 0 ? (

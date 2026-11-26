@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireMasterLabAdmin } from '@/lib/auth/guards';
+import type { AutoSyncStatus } from '@/types/database';
 import SyncSetClient from './SyncSetClient';
 
 export const instant = false;
@@ -11,11 +12,13 @@ interface PageProps {
 
 export default async function ContestSetSyncDetailPage({ params }: PageProps) {
   const { setId } = await params;
-  const { supabase } = await requireMasterLabAdmin();
+  const { profile, supabase } = await requireMasterLabAdmin();
 
   const { data: set } = await supabase
     .from('contest_sets')
-    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, hr_session_cookie, created_at, competitions(*)')
+    .select(
+      'set_id, competition_id, set_name, set_code, hackerrank_slug, hr_session_cookie, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, competitions(*)',
+    )
     .eq('set_id', setId)
     .single();
 
@@ -81,11 +84,14 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
 
           <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800">
             <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-              Auto Sync with HackerRank
+              Lab Credentials &amp; Auto-Sync
             </h2>
             <SyncSetClient
               setId={set.set_id}
               defaultSlug={set.hackerrank_slug}
+              defaultInchargeName={set.lab_incharge_name ?? profile.name}
+              initialAutoSyncStatus={((set.auto_sync_status as AutoSyncStatus | undefined) ?? 'PENDING')}
+              initialRejectionReason={set.auto_sync_rejection_reason ?? null}
               hasSavedCookie={hasSavedCookie}
             />
           </div>

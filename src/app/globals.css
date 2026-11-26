@@ -148,3 +148,51 @@ button, a, input, select {
     font-size: 10pt !important;
   }
 }
+
+/* ==========================================================================
+   Leaderboard Rank Movement Animations
+   ========================================================================== */
+@keyframes rank-climb {
+  0% {
+    transform: translateY(14px);
+    background-color: rgba(16, 185, 129, 0.22);
+  }
+  40% {
+    transform: translateY(0);
+    background-color: rgba(16, 185, 129, 0.14);
+  }
+  100% {
+    transform: translateY(0);
+    background-color: transparent;
+  }
+}
+
+@keyframes rank-drop {
+  0% {
+    transform: translateY(-14px);
+    background-color: rgba(244, 63, 94, 0.2);
+  }
+  40% {
+    transform: translateY(0);
+    background-color: rgba(244, 63, 94, 0.12);
+  }
+  100% {
+    transform: translateY(0);
+    background-color: transparent;
+  }
+}
+
+.animate-rank-climb {
+  animation: rank-climb 2.2s var(--ease-taste) both;
+}
+
+.animate-rank-drop {
+  animation: rank-drop 2.2s var(--ease-taste) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rank-climb,
+  .animate-rank-drop {
+    animation: none;
+  }
+}

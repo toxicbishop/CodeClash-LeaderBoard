@@ -7,6 +7,8 @@ import {
   deleteUser,
   toggleUserStatus,
   assignLabAdminName,
+  approveContestSetAutoSync,
+  rejectContestSetAutoSync,
   approveUpload,
   rejectUpload,
   generateLeaderboard,
@@ -85,6 +87,8 @@ describe('Super Admin role protection', () => {
     await expect(createContestSet(fd)).rejects.toThrow('FORBIDDEN:403');
     await expect(deleteContestSet('set-id')).rejects.toThrow('FORBIDDEN:403');
     await expect(assignLabAdminName('user-id', 'Lab Lead')).rejects.toThrow('FORBIDDEN:403');
+    await expect(approveContestSetAutoSync('set-id')).rejects.toThrow('FORBIDDEN:403');
+    await expect(rejectContestSetAutoSync('set-id', 'no')).rejects.toThrow('FORBIDDEN:403');
   });
 
   it('denies unauthenticated callers via HTTP 401 unauthorized', async () => {

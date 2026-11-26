@@ -3,6 +3,8 @@ import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { AssignLabAdminCard } from './AssignLabAdminCard';
+import { SetAutoSyncActions } from './competitions/[id]/SetAutoSyncActions';
+import type { AutoSyncStatus } from '@/types/database';
 
 export const instant = false;
 
@@ -15,6 +17,7 @@ export default async function AdminDashboardPage() {
     { count: usersCount },
     { data: recentCompetitions },
     { data: labAdmins },
+    { data: pendingSetsRaw },
   ] = await Promise.all([
     supabase.from('competitions').select('*', { count: 'exact', head: true }),
     supabase.from('contest_sets').select('*', { count: 'exact', head: true }),
@@ -28,7 +31,18 @@ export default async function AdminDashboardPage() {
       .select('user_id, name, email, account_status')
       .eq('role', 'MASTER_LAB_ADMIN')
       .order('created_at', { ascending: false }),
+    supabase.from('contest_sets')
+      .select('set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, competitions(competition_name), uploads(upload_id, status, record_count, upload_version)')
+      .eq('auto_sync_status', 'PENDING'),
   ]);
+
+  const pendingApprovals = (pendingSetsRaw ?? [])
+    .map((s) => {
+      const uploads = (s.uploads as { upload_id: string; status: string; record_count: number | null; upload_version: number }[]) ?? [];
+      const latest = uploads.sort((a, b) => b.upload_version - a.upload_version)[0];
+      return { ...s, latest };
+    })
+    .filter((s) => s.latest?.status === 'PENDING_APPROVAL');
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -72,6 +86,63 @@ export default async function AdminDashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* One-Time Lab Auto-Sync Approval Requests */}
+        {pendingApprovals.length > 0 && (
+          <div className="mt-8 rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-bold text-amber-800 dark:text-amber-300">
+                  One-Time Lab Auto-Sync Approval Requests ({pendingApprovals.length})
+                </h2>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                  Approve once to let that lab auto-sync continuously to the live leaderboard without further clicks.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {pendingApprovals.map((req) => {
+                const compName = (req.competitions as unknown as { competition_name?: string } | null)?.competition_name ?? 'Competition';
+                return (
+                  <div
+                    key={req.set_id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
+                  >
+                    <div className="space-y-1 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
+                          {req.lab_incharge_name || 'Lab In-Charge'}
+                        </span>
+                        <span className="text-zinc-400">·</span>
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                          {req.set_name} ({req.set_code})
+                        </span>
+                        <span className="text-zinc-400">in</span>
+                        <Link
+                          href={`/admin/competitions/${req.competition_id}`}
+                          className="font-medium text-zinc-700 dark:text-zinc-300 hover:underline"
+                        >
+                          {compName}
+                        </Link>
+                      </div>
+                      <div className="text-zinc-500 font-mono">
+                        Slug: {req.hackerrank_slug} · {req.latest?.record_count ?? 0} participants verified
+                      </div>
+                    </div>
+
+                    <SetAutoSyncActions
+                      setId={req.set_id}
+                      setName={req.set_name}
+                      autoSyncStatus={(req.auto_sync_status as AutoSyncStatus) ?? 'PENDING'}
+                      hasPendingUpload={true}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Assign Lab Admin Name */}
         <AssignLabAdminCard labAdmins={labAdmins ?? []} />

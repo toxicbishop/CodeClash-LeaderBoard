@@ -18,6 +18,8 @@ export type UploadStatus =
 
 export type SnapshotStatus = 'DRAFT' | 'APPROVED' | 'PUBLISHED' | 'SUPERSEDED';
 
+export type AutoSyncStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export type QualificationStatus = 'QUALIFIED' | 'NOT_QUALIFIED' | 'BOUNDARY_REVIEW';
 
 export type TieBreakerCriterion =
@@ -56,6 +58,12 @@ export interface ContestSet {
   set_name: string;       // "Set A"
   set_code: string;       // "setA"
   hackerrank_slug: string; // "codeclash-2026-setA"
+  lab_incharge_name?: string | null;
+  auto_sync_status?: AutoSyncStatus;
+  auto_sync_rejection_reason?: string | null;
+  auto_sync_approved_by?: string | null;
+  auto_sync_approved_at?: string | null;
+  assigned_lab_admin_id?: string | null;
   is_active: boolean;
   created_at: string;
 }

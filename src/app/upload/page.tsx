@@ -2,6 +2,7 @@ import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import { logout } from '@/app/login/actions';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
 import { isValidUuid } from '@/lib/validation/uuid';
+import { LabAddSetForm } from './LabAddSetForm';
 import Link from 'next/link';
 
 export const instant = false;
@@ -117,22 +118,48 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
               </div>
             </div>
 
+            {/* Add Lab / Contest Set */}
+            <LabAddSetForm
+              competitionId={competition.competition_id}
+              defaultInchargeName={profile.name}
+              existingSets={
+                (competition.contest_sets as { set_code: string }[] | null) ?? []
+              }
+            />
+
             {/* Contest set sync cards */}
             <div>
               <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">Contest Sets — Sync from HackerRank</h2>
               {(!competition.contest_sets || competition.contest_sets.length === 0) ? (
                 <div className="text-center py-10 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
-                  <p className="text-sm text-zinc-500">No contest sets configured yet. The Super Admin must add them first.</p>
+                  <p className="text-sm text-zinc-500">No contest sets configured yet. Add your Lab / Contest Set above to send an approval request.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(competition.contest_sets as {
                     set_id: string; set_name: string; set_code: string; hackerrank_slug: string;
+                    lab_incharge_name?: string | null; auto_sync_status?: string;
                     uploads: { upload_id: string; status: string; record_count: number | null; upload_version: number; uploaded_at: string }[]
                   }[]).map((set) => {
                     const sortedUploads = [...(set.uploads ?? [])].sort((a, b) => b.upload_version - a.upload_version);
                     const latest = sortedUploads[0];
-                    const status = latest?.status ?? 'PENDING';
+                    const autoStatus = set.auto_sync_status ?? 'PENDING';
+                    const autoStatusLabel =
+                      autoStatus === 'APPROVED'
+                        ? 'LIVE AUTO-SYNC'
+                        : autoStatus === 'REJECTED'
+                        ? 'CANCELLED / REJECTED'
+                        : latest
+                        ? 'AWAITING APPROVAL'
+                        : 'NOT REQUESTED';
+                    const autoStatusClass =
+                      autoStatus === 'APPROVED'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        : autoStatus === 'REJECTED'
+                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                        : latest
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20';
 
                     return (
                       <div key={set.set_id}
@@ -141,9 +168,14 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
                           <div>
                             <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">{set.set_name}</h3>
                             <p className="text-xs font-mono text-zinc-500 mt-0.5">{set.hackerrank_slug}</p>
+                            {set.lab_incharge_name && (
+                              <p className="text-[11px] text-zinc-500 mt-0.5">
+                                In-Charge: <span className="font-medium text-zinc-700 dark:text-zinc-300">{set.lab_incharge_name}</span>
+                              </p>
+                            )}
                           </div>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${statusClass(status)}`}>
-                            {status.replace(/_/g, ' ')}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${autoStatusClass}`}>
+                            {autoStatusLabel}
                           </span>
                         </div>
 
@@ -157,7 +189,13 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
                         <Link
                           href={`/upload/${set.set_id}`}
                           className="inline-block w-full text-center px-4 py-2 text-xs font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 transition-colors">
-                          {latest ? 'Re-sync from HackerRank' : 'Sync from HackerRank'}
+                          {autoStatus === 'APPROVED'
+                            ? 'Open Live Auto-Sync'
+                            : autoStatus === 'REJECTED'
+                            ? 'Edit & Re-send Request'
+                            : latest
+                            ? 'View Request / Auto-Sync'
+                            : 'Configure & Send Approval Request'}
                         </Link>
                       </div>
                     );

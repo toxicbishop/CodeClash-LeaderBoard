@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 export interface LeaderboardRowItem {
@@ -48,15 +48,48 @@ export function LeaderboardTable({
   const [selectedSetId, setSelectedSetId] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'QUALIFIED' | 'BOUNDARY'>('ALL');
   const [isProjectorMode, setIsProjectorMode] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(!isDraft);
+  const [rankDeltas, setRankDeltas] = useState<Record<string, number>>({});
+  const prevRanksRef = useRef<Map<string, number>>(new Map());
 
-  // Auto-sync timer for live leaderboard & projector displays
+  // Detect rank climbs & drops across live leaderboard updates
+  useEffect(() => {
+    const nextRanks = new Map<string, number>();
+    const deltas: Record<string, number> = {};
+
+    for (const item of entries) {
+      const handle = item.external_id.toLowerCase();
+      nextRanks.set(handle, item.overall_rank);
+      const prevRank = prevRanksRef.current.get(handle);
+      if (prevRank !== undefined && prevRank !== item.overall_rank) {
+        deltas[handle] = prevRank - item.overall_rank; // positive = climbed up, negative = dropped down
+      }
+    }
+
+    const hadPrevious = prevRanksRef.current.size > 0;
+    prevRanksRef.current = nextRanks;
+
+    if (!hadPrevious || Object.keys(deltas).length === 0) return;
+
+    const applyTimer = setTimeout(() => {
+      setRankDeltas(deltas);
+    }, 0);
+    const clearTimer = setTimeout(() => {
+      setRankDeltas({});
+    }, 3500);
+
+    return () => {
+      clearTimeout(applyTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [entries]);
+
+  // Auto-sync timer for live leaderboard & projector displays (every 20s)
   useEffect(() => {
     if (!autoRefresh) return;
-    router.refresh();
     const interval = setInterval(() => {
       router.refresh();
-    }, 10000);
+    }, 20000);
     return () => clearInterval(interval);
   }, [autoRefresh, router]);
 
@@ -186,7 +219,7 @@ export function LeaderboardTable({
                   : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white'
               }`}
             >
-              {autoRefresh ? 'Auto Sync: On (10s) · Stop' : 'Auto Sync'}
+              {autoRefresh ? 'Auto Sync: On (20s) · Pause' : 'Auto Sync: Off'}
             </button>
             <button
               onClick={toggleFullScreen}
@@ -446,10 +479,10 @@ export function LeaderboardTable({
                 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
                 : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
-            title="Toggle continuous 10s leaderboard auto-sync"
+            title="Toggle continuous 20s leaderboard auto-refresh"
           >
             {autoRefresh && <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-            {autoRefresh ? 'Stop Auto Sync' : 'Auto Sync'}
+            {autoRefresh ? 'Auto Sync: On (20s)' : 'Auto Sync: Off'}
           </button>
 
           {!isProjectorMode && (
@@ -509,11 +542,18 @@ export function LeaderboardTable({
                 const isTied = (rankCounts.get(item.overall_rank) || 0) > 1;
                 const isQualified = item.qualification_status === 'QUALIFIED';
                 const isBoundary = item.qualification_status === 'BOUNDARY_REVIEW';
+                const rankDelta = rankDeltas[item.external_id.toLowerCase()] ?? 0;
+                const movementClass =
+                  rankDelta > 0
+                    ? 'animate-rank-climb'
+                    : rankDelta < 0
+                    ? 'animate-rank-drop'
+                    : '';
 
                 return (
                   <tr
-                    key={item.entry_id}
-                    className={`transition-colors ${
+                    key={`${item.entry_id}-${rankDelta}`}
+                    className={`transition-colors ${movementClass} ${
                       isBoundary
                         ? 'bg-rose-500/5 hover:bg-rose-500/10'
                         : isQualified
@@ -527,23 +567,41 @@ export function LeaderboardTable({
                   >
                     {/* Rank */}
                     <td className="px-6 py-4 font-mono font-medium">
-                      {item.overall_rank === 1 ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                          {isTied ? '=1' : '1'}
-                        </span>
-                      ) : item.overall_rank === 2 ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
-                          {isTied ? '=2' : '2'}
-                        </span>
-                      ) : item.overall_rank === 3 ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
-                          {isTied ? '=3' : '3'}
-                        </span>
-                      ) : (
-                        <span className="text-zinc-500 font-mono text-xs tabular-nums">
-                          {isTied ? `=${item.overall_rank}` : `#${item.overall_rank}`}
-                        </span>
-                      )}
+                      <div className="inline-flex items-center gap-1.5">
+                        {item.overall_rank === 1 ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                            {isTied ? '=1' : '1'}
+                          </span>
+                        ) : item.overall_rank === 2 ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
+                            {isTied ? '=2' : '2'}
+                          </span>
+                        ) : item.overall_rank === 3 ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
+                            {isTied ? '=3' : '3'}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-500 font-mono text-xs tabular-nums">
+                            {isTied ? `=${item.overall_rank}` : `#${item.overall_rank}`}
+                          </span>
+                        )}
+                        {rankDelta > 0 && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                            title={`Climbed ${rankDelta} position(s)`}
+                          >
+                            ▲ {rankDelta}
+                          </span>
+                        )}
+                        {rankDelta < 0 && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                            title={`Dropped ${Math.abs(rankDelta)} position(s)`}
+                          >
+                            ▼ {Math.abs(rankDelta)}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Contestant */}

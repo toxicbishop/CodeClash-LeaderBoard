@@ -4,12 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireSuperAdmin } from '@/lib/auth/guards';
-import { computeRankings } from '@/lib/ranking/engine';
+import { createCompetitionSnapshot } from '@/lib/leaderboard/publish';
 import { extractContestSlug } from '@/lib/hackerrank/client';
 import { isValidUuid } from '@/lib/validation/uuid';
 import { isAllowedProvisionRole, validatePasswordPolicy, ALLOWED_PROVISION_ROLES } from '@/lib/security/password';
 import { encryptSecret } from '@/lib/security/encryption';
-import type { TieBreakerRule } from '@/types/database';
 
 export type ActionResponse = {
   success?: boolean;
@@ -275,6 +274,169 @@ export async function deleteContestSet(setId: string): Promise<ActionResponse> {
 }
 
 // ---------------------------------------------------------------------------
+// One-time auto-sync approval & cancellation (Super Admin)
+// ---------------------------------------------------------------------------
+
+export async function approveContestSetAutoSync(setId: string): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(setId)) {
+    return { error: 'Invalid contest set ID.' };
+  }
+
+  const adminClient = await createAdminClient();
+  const { data: targetSet, error: setErr } = await adminClient
+    .from('contest_sets')
+    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name')
+    .eq('set_id', setId)
+    .maybeSingle();
+
+  if (setErr || !targetSet) {
+    return { error: 'Contest set not found.' };
+  }
+
+  const now = new Date().toISOString();
+
+  // 1. Authorize this set for continuous auto-sync
+  const { error: setUpdateErr } = await adminClient
+    .from('contest_sets')
+    .update({
+      auto_sync_status: 'APPROVED',
+      auto_sync_rejection_reason: null,
+      auto_sync_approved_by: user.id,
+      auto_sync_approved_at: now,
+    })
+    .eq('set_id', setId);
+
+  if (setUpdateErr) {
+    return { error: `Failed to approve auto-sync: ${setUpdateErr.message}` };
+  }
+
+  // 2. Promote latest PENDING_APPROVAL upload (if any) to APPROVED
+  const { data: latestPending } = await adminClient
+    .from('uploads')
+    .select('upload_id')
+    .eq('set_id', setId)
+    .eq('status', 'PENDING_APPROVAL')
+    .order('upload_version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestPending) {
+    await adminClient
+      .from('uploads')
+      .update({ status: 'SUPERSEDED' })
+      .eq('set_id', setId)
+      .eq('status', 'APPROVED');
+
+    await adminClient
+      .from('uploads')
+      .update({
+        status: 'APPROVED',
+        approved_by: user.id,
+        approved_at: now,
+      })
+      .eq('upload_id', latestPending.upload_id);
+  }
+
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'CONTEST_SET_AUTO_SYNC_APPROVED',
+    entity_type: 'contest_set',
+    entity_id: setId,
+    details: {
+      competition_id: targetSet.competition_id,
+      set_name: targetSet.set_name,
+      set_code: targetSet.set_code,
+      lab_incharge_name: targetSet.lab_incharge_name,
+    },
+  });
+
+  // 3. Immediately publish live leaderboard if any approved participants exist
+  const snapRes = await createCompetitionSnapshot(targetSet.competition_id, user.id, {
+    publishImmediately: true,
+    auditAction: 'LEADERBOARD_AUTO_PUBLISHED',
+  });
+
+  revalidatePath('/admin');
+  revalidatePath(`/admin/competitions/${targetSet.competition_id}`);
+  revalidatePath('/upload');
+  revalidatePath(`/upload/${setId}`);
+  revalidatePath('/leaderboard');
+
+  if (snapRes.error && snapRes.error !== 'No approved submissions found to consolidate.') {
+    return { error: snapRes.error };
+  }
+
+  return { success: true, data: snapRes.data ?? { approvedOnly: true } };
+}
+
+export async function rejectContestSetAutoSync(
+  setId: string,
+  reason?: string,
+): Promise<ActionResponse> {
+  const { user } = await requireSuperAdmin();
+
+  if (!isValidUuid(setId)) {
+    return { error: 'Invalid contest set ID.' };
+  }
+
+  const trimmedReason = reason?.trim() || 'Sync cancelled by Super Admin.';
+  const adminClient = await createAdminClient();
+
+  const { data: targetSet, error: setErr } = await adminClient
+    .from('contest_sets')
+    .select('set_id, competition_id, set_name, set_code, lab_incharge_name')
+    .eq('set_id', setId)
+    .maybeSingle();
+
+  if (setErr || !targetSet) {
+    return { error: 'Contest set not found.' };
+  }
+
+  const { error: updateErr } = await adminClient
+    .from('contest_sets')
+    .update({
+      auto_sync_status: 'REJECTED',
+      auto_sync_rejection_reason: trimmedReason,
+    })
+    .eq('set_id', setId);
+
+  if (updateErr) {
+    return { error: `Failed to cancel auto-sync: ${updateErr.message}` };
+  }
+
+  await adminClient
+    .from('uploads')
+    .update({
+      status: 'REJECTED',
+      rejection_reason: trimmedReason,
+    })
+    .eq('set_id', setId)
+    .eq('status', 'PENDING_APPROVAL');
+
+  await adminClient.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'CONTEST_SET_AUTO_SYNC_REJECTED',
+    entity_type: 'contest_set',
+    entity_id: setId,
+    details: {
+      competition_id: targetSet.competition_id,
+      set_name: targetSet.set_name,
+      set_code: targetSet.set_code,
+      lab_incharge_name: targetSet.lab_incharge_name,
+      reason: trimmedReason,
+    },
+  });
+
+  revalidatePath('/admin');
+  revalidatePath(`/admin/competitions/${targetSet.competition_id}`);
+  revalidatePath('/upload');
+  revalidatePath(`/upload/${setId}`);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // Upload approval / rejection
 // ---------------------------------------------------------------------------
 
@@ -416,123 +578,16 @@ export async function rejectUpload(uploadId: string, reason: string): Promise<Ac
 // ---------------------------------------------------------------------------
 
 export async function generateLeaderboard(competitionId: string): Promise<ActionResponse> {
-  const { supabase, user } = await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
 
   if (!isValidUuid(competitionId)) {
     return { error: 'Invalid competition ID.' };
   }
 
-  // 1. Fetch competition and topK
-  const { data: competition, error: compError } = await supabase
-    .from('competitions')
-    .select('competition_id, top_k')
-    .eq('competition_id', competitionId)
-    .single();
-
-  if (compError || !competition) return { error: 'Competition not found.' };
-
-  // 2. Fetch tie breaker rules
-  const { data: rules } = await supabase
-    .from('tie_breaker_rules')
-    .select('*')
-    .eq('competition_id', competitionId)
-    .order('priority', { ascending: true });
-
-  const activeRules: TieBreakerRule[] = rules || [
-    { rule_id: '1', competition_id: competitionId, criterion: 'total_score', priority: 1, direction: 'DESC', enabled: true, approved_by: null },
-    { rule_id: '2', competition_id: competitionId, criterion: 'problems_solved', priority: 2, direction: 'DESC', enabled: true, approved_by: null },
-    { rule_id: '3', competition_id: competitionId, criterion: 'penalty', priority: 3, direction: 'ASC', enabled: true, approved_by: null },
-  ];
-
-  // 3. Fetch all approved participants & results across all sets
-  const { data: participants, error: partError } = await supabase
-    .from('participants')
-    .select('participant_id, external_id, participant_name, set_id, contest_sets(set_name), results(total_score, problems_solved, penalty, final_submission_time, incorrect_submissions), uploads!inner(status)')
-    .eq('competition_id', competitionId)
-    .eq('uploads.status', 'APPROVED');
-
-  if (partError || !participants || participants.length === 0) {
-    return { error: 'No approved submissions found to consolidate.' };
-  }
-
-  const flatInput = participants.map((p) => {
-    const r = (p.results as unknown as Array<{
-      total_score: number;
-      problems_solved: number | null;
-      penalty: number | null;
-      final_submission_time: number | null;
-      incorrect_submissions: number | null;
-    }>)?.[0];
-    const setName = (p.contest_sets as unknown as { set_name: string })?.set_name || 'Set';
-    return {
-      participant_id: p.participant_id,
-      external_id: p.external_id,
-      participant_name: p.participant_name,
-      set_id: p.set_id,
-      set_name: setName,
-      total_score: Number(r?.total_score ?? 0),
-      problems_solved: r?.problems_solved ?? null,
-      penalty: r?.penalty ?? null,
-      final_submission_time: r?.final_submission_time ?? null,
-      incorrect_submissions: r?.incorrect_submissions ?? null,
-    };
+  return createCompetitionSnapshot(competitionId, user.id, {
+    publishImmediately: false,
+    auditAction: 'LEADERBOARD_GENERATED',
   });
-
-  // 4. Run ranking engine
-  const ranked = computeRankings(flatInput, activeRules, competition.top_k);
-
-  // 5. Store snapshot in DB
-  const adminClient = await createAdminClient();
-
-  const { data: lastSnap } = await adminClient
-    .from('leaderboard_snapshots')
-    .select('version')
-    .eq('competition_id', competitionId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const newVersion = (lastSnap?.version ?? 0) + 1;
-
-  const { data: snapshot, error: snapError } = await adminClient
-    .from('leaderboard_snapshots')
-    .insert({
-      competition_id: competitionId,
-      version: newVersion,
-      generated_by: user.id,
-      status: 'DRAFT',
-    })
-    .select('snapshot_id')
-    .single();
-
-  if (snapError || !snapshot) return { error: `Failed to create snapshot: ${snapError?.message}` };
-
-  const entries = ranked.map((entry) => ({
-    snapshot_id: snapshot.snapshot_id,
-    participant_id: entry.participant_id,
-    set_id: entry.set_id,
-    overall_rank: entry.overall_rank,
-    total_score: entry.total_score,
-    problems_solved: entry.problems_solved,
-    penalty: entry.penalty,
-    qualification_status: entry.qualification_status,
-  }));
-
-  const { error: entryError } = await adminClient.from('leaderboard_entries').insert(entries);
-  if (entryError) return { error: `Failed to insert entries: ${entryError.message}` };
-
-  // Audit log
-  await adminClient.from('audit_logs').insert({
-    user_id: user.id,
-    action: 'LEADERBOARD_GENERATED',
-    entity_type: 'leaderboard_snapshot',
-    entity_id: snapshot.snapshot_id,
-    details: { competition_id: competitionId, version: newVersion, total_entries: entries.length },
-  });
-
-  revalidatePath(`/admin/competitions/${competitionId}`);
-  revalidatePath('/monitor');
-  return { success: true, data: { snapshot_id: snapshot.snapshot_id, version: newVersion } };
 }
 
 export async function publishLeaderboard(snapshotId: string): Promise<ActionResponse> {
