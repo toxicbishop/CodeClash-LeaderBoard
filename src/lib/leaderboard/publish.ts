@@ -25,21 +25,42 @@ export async function createCompetitionSnapshot(
 ): Promise<SnapshotResult> {
   const adminClient = createAdminClient();
 
-  const { data: competition, error: compError } = await adminClient
-    .from('competitions')
-    .select('competition_id, top_k')
-    .eq('competition_id', competitionId)
-    .single();
+  const [
+    { data: competition, error: compError },
+    { data: rules },
+    { data: participants, error: partError },
+    { data: lastSnap },
+  ] = await Promise.all([
+    adminClient
+      .from('competitions')
+      .select('competition_id, top_k')
+      .eq('competition_id', competitionId)
+      .single(),
+    adminClient
+      .from('tie_breaker_rules')
+      .select('*')
+      .eq('competition_id', competitionId)
+      .order('priority', { ascending: true }),
+    adminClient
+      .from('participants')
+      .select(
+        'participant_id, external_id, participant_name, set_id, contest_sets!inner(set_name, is_active), results(total_score, problems_solved, penalty, final_submission_time, incorrect_submissions), uploads!inner(status)',
+      )
+      .eq('competition_id', competitionId)
+      .eq('uploads.status', 'APPROVED')
+      .eq('contest_sets.is_active', true),
+    adminClient
+      .from('leaderboard_snapshots')
+      .select('version')
+      .eq('competition_id', competitionId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   if (compError || !competition) {
     return { error: 'Competition not found.' };
   }
-
-  const { data: rules } = await adminClient
-    .from('tie_breaker_rules')
-    .select('*')
-    .eq('competition_id', competitionId)
-    .order('priority', { ascending: true });
 
   const activeRules: TieBreakerRule[] =
     rules && rules.length > 0
@@ -74,15 +95,6 @@ export async function createCompetitionSnapshot(
           },
         ];
 
-  const { data: participants, error: partError } = await adminClient
-    .from('participants')
-    .select(
-      'participant_id, external_id, participant_name, set_id, contest_sets!inner(set_name, is_active), results(total_score, problems_solved, penalty, final_submission_time, incorrect_submissions), uploads!inner(status)',
-    )
-    .eq('competition_id', competitionId)
-    .eq('uploads.status', 'APPROVED')
-    .eq('contest_sets.is_active', true);
-
   if (partError || !participants || participants.length === 0) {
     return { error: 'No approved submissions found to consolidate.' };
   }
@@ -113,14 +125,6 @@ export async function createCompetitionSnapshot(
   });
 
   const ranked = computeRankings(flatInput, activeRules, competition.top_k);
-
-  const { data: lastSnap } = await adminClient
-    .from('leaderboard_snapshots')
-    .select('version')
-    .eq('competition_id', competitionId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   const newVersion = (lastSnap?.version ?? 0) + 1;
   const now = new Date().toISOString();
@@ -166,26 +170,33 @@ export async function createCompetitionSnapshot(
     return { error: `Failed to insert entries: ${entryError.message}` };
   }
 
-  if (options.publishImmediately) {
-    await adminClient
-      .from('leaderboard_snapshots')
-      .update({ status: 'SUPERSEDED' })
-      .eq('competition_id', competitionId)
-      .neq('snapshot_id', snapshot.snapshot_id);
+  const postOps: PromiseLike<unknown>[] = [
+    adminClient.from('audit_logs').insert({
+      user_id: actorUserId,
+      action:
+        options.auditAction ??
+        (options.publishImmediately ? 'LEADERBOARD_AUTO_PUBLISHED' : 'LEADERBOARD_GENERATED'),
+      entity_type: 'leaderboard_snapshot',
+      entity_id: snapshot.snapshot_id,
+      details: { competition_id: competitionId, version: newVersion, total_entries: entries.length },
+    }),
+  ];
 
-    await adminClient
-      .from('competitions')
-      .update({ status: 'PUBLISHED' })
-      .eq('competition_id', competitionId);
+  if (options.publishImmediately) {
+    postOps.push(
+      adminClient
+        .from('leaderboard_snapshots')
+        .update({ status: 'SUPERSEDED' })
+        .eq('competition_id', competitionId)
+        .neq('snapshot_id', snapshot.snapshot_id),
+      adminClient
+        .from('competitions')
+        .update({ status: 'PUBLISHED' })
+        .eq('competition_id', competitionId),
+    );
   }
 
-  await adminClient.from('audit_logs').insert({
-    user_id: actorUserId,
-    action: options.auditAction ?? (options.publishImmediately ? 'LEADERBOARD_AUTO_PUBLISHED' : 'LEADERBOARD_GENERATED'),
-    entity_type: 'leaderboard_snapshot',
-    entity_id: snapshot.snapshot_id,
-    details: { competition_id: competitionId, version: newVersion, total_entries: entries.length },
-  });
+  await Promise.all(postOps);
 
   revalidatePath(`/admin/competitions/${competitionId}`);
   revalidatePath('/monitor');

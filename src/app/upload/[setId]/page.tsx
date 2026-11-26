@@ -14,25 +14,25 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
   const { setId } = await params;
   const { profile, supabase } = await requireMasterLabAdmin();
 
-  const { data: set } = await supabase
-    .from('contest_sets')
-    .select(
-      'set_id, competition_id, set_name, set_code, hackerrank_slug, hr_session_cookie, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, competitions(*)',
-    )
-    .eq('set_id', setId)
-    .single();
+  const [{ data: set }, { data: uploads }] = await Promise.all([
+    supabase
+      .from('contest_sets')
+      .select(
+        'set_id, competition_id, set_name, set_code, hackerrank_slug, hr_session_cookie, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, competitions(competition_name)',
+      )
+      .eq('set_id', setId)
+      .single(),
+    supabase
+      .from('uploads')
+      .select('upload_id, status, record_count, upload_version, uploaded_at, rejection_reason, validation_errors, collision_flags')
+      .eq('set_id', setId)
+      .order('upload_version', { ascending: false })
+      .limit(5),
+  ]);
 
   if (!set) notFound();
 
   const hasSavedCookie = Boolean(set.hr_session_cookie);
-
-  // Fetch recent uploads for this set
-  const { data: uploads } = await supabase
-    .from('uploads')
-    .select('*')
-    .eq('set_id', setId)
-    .order('upload_version', { ascending: false });
-
   const latest = uploads?.[0];
 
   return (

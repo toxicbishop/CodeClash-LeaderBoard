@@ -14,19 +14,20 @@ export default async function NewContestSetPage({ params }: PageProps) {
   const { id: competitionId } = await params;
   const { profile, supabase } = await requireSuperAdmin();
 
-  const { data: comp } = await supabase
-    .from('competitions')
-    .select('competition_id, competition_name')
-    .eq('competition_id', competitionId)
-    .single();
+  const [{ data: comp }, { data: existingSets }] = await Promise.all([
+    supabase
+      .from('competitions')
+      .select('competition_id, competition_name')
+      .eq('competition_id', competitionId)
+      .single(),
+    supabase
+      .from('contest_sets')
+      .select('set_id, set_name, set_code, hackerrank_slug')
+      .eq('competition_id', competitionId)
+      .order('set_code', { ascending: true }),
+  ]);
 
   if (!comp) notFound();
-
-  const { data: existingSets } = await supabase
-    .from('contest_sets')
-    .select('set_id, set_name, set_code, hackerrank_slug')
-    .eq('competition_id', competitionId)
-    .order('set_code', { ascending: true });
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

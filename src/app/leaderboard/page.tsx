@@ -45,19 +45,30 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
   const requestedSlug = resolvedParams?.comp;
   const supabase = await createClient();
 
-  // 1. Fetch competition: either requested by query, or the most recently published one
+  // 1. Fetch competition + latest PUBLISHED snapshot in a single query
+  interface PublishedSnapshotRow {
+    snapshot_id: string;
+    competition_id: string;
+    version: number;
+    generated_at: string;
+    published_at: string | null;
+    status: string;
+  }
+
   let activeComp: Competition | null = null;
+  let currentSnapshot: PublishedSnapshotRow | null = null;
 
   if (requestedSlug) {
-    const { data } = await supabase
+    const { data: compWithSnap } = await supabase
       .from('competitions')
-      .select('competition_id, slug, competition_name, description, contest_date, top_k, status, created_at')
+      .select(
+        'competition_id, slug, competition_name, description, contest_date, top_k, status, created_at, leaderboard_snapshots(snapshot_id, competition_id, version, generated_at, published_at, status)',
+      )
       .eq('slug', requestedSlug)
       .eq('status', 'PUBLISHED')
       .maybeSingle();
-    activeComp = data as Competition | null;
 
-    if (!activeComp) {
+    if (!compWithSnap) {
       return (
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col justify-between">
           <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 h-16 flex items-center px-4 sm:px-8">
@@ -73,7 +84,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
             </svg>
             <h1 className="text-xl font-medium">Leaderboard not published yet</h1>
             <p className="text-xs text-zinc-500 mt-2">
-              The competition <span className="font-mono text-zinc-700 dark:text-zinc-300">{requestedSlug}</span> either does not exist or has not been published yet. Sync and approve at least one contest set, generate a snapshot, and click Publish Live.
+              The competition <span className="font-mono text-zinc-700 dark:text-zinc-300">{requestedSlug}</span> either does not exist or has not been published yet.
             </p>
             <Link href="/leaderboard" className="mt-4 inline-block text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
               View latest published leaderboard &rarr;
@@ -84,21 +95,38 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         </div>
       );
     }
+
+    activeComp = compWithSnap as unknown as Competition;
+    const snaps = (compWithSnap.leaderboard_snapshots as unknown as PublishedSnapshotRow[]) ?? [];
+    currentSnapshot =
+      snaps
+        .filter((s) => Boolean(s) && s.status === 'PUBLISHED')
+        .sort((a, b) => b.version - a.version)[0] ?? null;
   }
 
   if (!activeComp) {
-    // Prefer the competition whose snapshot was published most recently
     const { data: latestSnapshots } = await supabase
       .from('leaderboard_snapshots')
-      .select('competitions!inner(competition_id, slug, competition_name, description, contest_date, top_k, status, created_at)')
+      .select(
+        'snapshot_id, competition_id, version, generated_at, published_at, status, competitions!inner(competition_id, slug, competition_name, description, contest_date, top_k, status, created_at)',
+      )
       .eq('status', 'PUBLISHED')
       .eq('competitions.status', 'PUBLISHED')
       .order('published_at', { ascending: false, nullsFirst: false })
       .limit(1);
 
-    const joinedComp = latestSnapshots?.[0]?.competitions;
-    if (joinedComp) {
+    const latestRow = latestSnapshots?.[0];
+    if (latestRow) {
+      const joinedComp = latestRow.competitions;
       activeComp = (Array.isArray(joinedComp) ? joinedComp[0] : joinedComp) as Competition;
+      currentSnapshot = {
+        snapshot_id: latestRow.snapshot_id,
+        competition_id: latestRow.competition_id,
+        version: latestRow.version,
+        generated_at: latestRow.generated_at,
+        published_at: latestRow.published_at,
+        status: latestRow.status,
+      };
     } else {
       const { data: competitions } = await supabase
         .from('competitions')
@@ -139,72 +167,58 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     );
   }
 
-  // 2. Fetch latest PUBLISHED snapshot (never draft)
-  const { data: publishedSnapshots } = await supabase
-    .from('leaderboard_snapshots')
-    .select('snapshot_id, competition_id, version, generated_at, published_at, status')
-    .eq('competition_id', activeComp.competition_id)
-    .eq('status', 'PUBLISHED')
-    .order('version', { ascending: false })
-    .limit(1);
-
-  const currentSnapshot = publishedSnapshots && publishedSnapshots.length > 0 ? publishedSnapshots[0] : null;
-
-  // 3. Fetch active contest sets (only required public columns)
-  const { data: contestSetsData } = await supabase
-    .from('contest_sets')
-    .select('set_id, set_name, set_code')
-    .eq('competition_id', activeComp.competition_id)
-    .eq('is_active', true)
-    .order('set_code', { ascending: true });
+  // 2. Fetch contest sets, tie-breaker rules, and snapshot entries in parallel
+  const [{ data: contestSetsData }, { data: tieBreakersData }, entriesResult] = await Promise.all([
+    supabase
+      .from('contest_sets')
+      .select('set_id, set_name, set_code')
+      .eq('competition_id', activeComp.competition_id)
+      .eq('is_active', true)
+      .order('set_code', { ascending: true }),
+    supabase
+      .from('tie_breaker_rules')
+      .select('criterion, direction')
+      .eq('competition_id', activeComp.competition_id)
+      .eq('enabled', true)
+      .order('priority', { ascending: true }),
+    currentSnapshot
+      ? supabase
+          .from('leaderboard_entries')
+          .select(`
+            entry_id,
+            overall_rank,
+            total_score,
+            problems_solved,
+            penalty,
+            qualification_status,
+            participant_id,
+            set_id,
+            participants!inner(external_id, participant_name),
+            contest_sets!inner(set_name, set_code)
+          `)
+          .eq('snapshot_id', currentSnapshot.snapshot_id)
+          .order('overall_rank', { ascending: true })
+          .order('total_score', { ascending: false })
+      : Promise.resolve({ data: null }),
+  ]);
 
   const contestSets: ContestSetItem[] = contestSetsData || [];
-
-  // 4. Fetch tie-breaker rules for display
-  const { data: tieBreakersData } = await supabase
-    .from('tie_breaker_rules')
-    .select('criterion, direction')
-    .eq('competition_id', activeComp.competition_id)
-    .eq('enabled', true)
-    .order('priority', { ascending: true });
-
-  // 5. Fetch leaderboard entries (only required columns)
   let rowItems: LeaderboardRowItem[] = [];
-  if (currentSnapshot) {
-    const { data: entries } = await supabase
-      .from('leaderboard_entries')
-      .select(`
-        entry_id,
-        overall_rank,
-        total_score,
-        problems_solved,
-        penalty,
-        qualification_status,
-        participant_id,
-        set_id,
-        participants!inner(external_id, participant_name),
-        contest_sets!inner(set_name, set_code)
-      `)
-      .eq('snapshot_id', currentSnapshot.snapshot_id)
-      .order('overall_rank', { ascending: true })
-      .order('total_score', { ascending: false });
-
-    if (entries) {
-      rowItems = (entries as unknown as RawEntry[]).map((e) => ({
-        entry_id: e.entry_id,
-        overall_rank: e.overall_rank,
-        total_score: Number(e.total_score),
-        problems_solved: e.problems_solved,
-        penalty: e.penalty !== null ? Number(e.penalty) : null,
-        qualification_status: e.qualification_status,
-        participant_id: e.participant_id,
-        external_id: e.participants?.external_id || 'Unknown',
-        participant_name: e.participants?.participant_name || 'Anonymous',
-        set_name: e.contest_sets?.set_name || 'Contest Set',
-        set_code: e.contest_sets?.set_code || '',
-        set_id: e.set_id,
-      }));
-    }
+  if (entriesResult.data) {
+    rowItems = (entriesResult.data as unknown as RawEntry[]).map((e) => ({
+      entry_id: e.entry_id,
+      overall_rank: e.overall_rank,
+      total_score: Number(e.total_score),
+      problems_solved: e.problems_solved,
+      penalty: e.penalty !== null ? Number(e.penalty) : null,
+      qualification_status: e.qualification_status,
+      participant_id: e.participant_id,
+      external_id: e.participants?.external_id || 'Unknown',
+      participant_name: e.participants?.participant_name || 'Anonymous',
+      set_name: e.contest_sets?.set_name || 'Contest Set',
+      set_code: e.contest_sets?.set_code || '',
+      set_id: e.set_id,
+    }));
   }
 
   const isDraft = currentSnapshot?.status === 'DRAFT';

@@ -17,27 +17,27 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
   const { profile, supabase } = await requireSuperAdmin();
   const { id: competitionId } = await params;
 
-  const { data: competition } = await supabase
-    .from('competitions')
-    .select('*')
-    .eq('competition_id', competitionId)
-    .single();
+  const [{ data: competition }, { data: sets }, { data: snapshots }] = await Promise.all([
+    supabase
+      .from('competitions')
+      .select('*')
+      .eq('competition_id', competitionId)
+      .single(),
+    supabase
+      .from('contest_sets')
+      .select(
+        'set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)',
+      )
+      .eq('competition_id', competitionId)
+      .order('set_code', { ascending: true }),
+    supabase
+      .from('leaderboard_snapshots')
+      .select('*')
+      .eq('competition_id', competitionId)
+      .order('version', { ascending: false }),
+  ]);
 
   if (!competition) notFound();
-
-  const { data: sets } = await supabase
-    .from('contest_sets')
-    .select(
-      'set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)',
-    )
-    .eq('competition_id', competitionId)
-    .order('set_code', { ascending: true });
-
-  const { data: snapshots } = await supabase
-    .from('leaderboard_snapshots')
-    .select('*')
-    .eq('competition_id', competitionId)
-    .order('version', { ascending: false });
 
   const hasApprovedUploads = (sets || []).some((set) => {
     const uploads = (set.uploads as { status: string }[]) ?? [];
@@ -238,7 +238,7 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                             hasPendingUpload={hasPendingUpload}
                           />
                           {hasPendingUpload && (
-                            <Link href={`/admin/competitions/${competitionId}/uploads/${latest.upload_id}/review`}
+                            <Link href={`/admin/competitions/${competitionId}/uploads/${latest.upload_id}/review`} prefetch={false}
                               className="font-medium text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
                               Inspect
                             </Link>

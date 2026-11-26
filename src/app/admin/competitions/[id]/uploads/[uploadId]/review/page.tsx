@@ -14,21 +14,21 @@ export default async function UploadReviewPage({ params }: PageProps) {
   const { id: competitionId, uploadId } = await params;
   const { profile, supabase } = await requireSuperAdmin();
 
-  const { data: upload } = await supabase
-    .from('uploads')
-    .select('*, contest_sets(*), competitions(*)')
-    .eq('upload_id', uploadId)
-    .single();
+  const [{ data: upload }, { data: participants }] = await Promise.all([
+    supabase
+      .from('uploads')
+      .select('*, contest_sets(*), competitions(*)')
+      .eq('upload_id', uploadId)
+      .single(),
+    supabase
+      .from('participants')
+      .select('*, results(*)')
+      .eq('upload_id', uploadId)
+      .order('participant_name', { ascending: true })
+      .limit(100),
+  ]);
 
   if (!upload) notFound();
-
-  // Fetch staged participants & results
-  const { data: participants } = await supabase
-    .from('participants')
-    .select('*, results(*)')
-    .eq('upload_id', uploadId)
-    .order('participant_name', { ascending: true })
-    .limit(100);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

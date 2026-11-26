@@ -24,7 +24,7 @@ export default async function AdminDashboardPage() {
     supabase.from('users').select('*', { count: 'exact', head: true })
       .in('role', ['MASTER_LAB_ADMIN', 'HOD', 'PRINCIPAL']),
     supabase.from('competitions')
-      .select('*, contest_sets(set_id)')
+      .select('competition_id, competition_name, slug, contest_date, status, top_k, contest_sets(set_id)')
       .order('created_at', { ascending: false })
       .limit(5),
     supabase.from('users')
@@ -32,8 +32,9 @@ export default async function AdminDashboardPage() {
       .eq('role', 'MASTER_LAB_ADMIN')
       .order('created_at', { ascending: false }),
     supabase.from('contest_sets')
-      .select('set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, competitions(competition_name), uploads(upload_id, status, record_count, upload_version)')
-      .eq('auto_sync_status', 'PENDING'),
+      .select('set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, competitions(competition_name), uploads!inner(upload_id, status, record_count, upload_version)')
+      .eq('auto_sync_status', 'PENDING')
+      .eq('uploads.status', 'PENDING_APPROVAL'),
   ]);
 
   const pendingApprovals = (pendingSetsRaw ?? [])
@@ -198,7 +199,7 @@ export default async function AdminDashboardPage() {
                       </td>
                       <td className="px-6 py-4 text-xs text-zinc-600 dark:text-zinc-300">Top {comp.top_k}</td>
                       <td className="px-6 py-4">
-                        <Link href={`/admin/competitions/${comp.competition_id}`}
+                        <Link href={`/admin/competitions/${comp.competition_id}`} prefetch={false}
                           className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
                           Manage →
                         </Link>

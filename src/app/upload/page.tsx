@@ -19,7 +19,9 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
   // Fetch all competitions so uploaders can switch between contests instead of being stuck on limit(1)
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('*, contest_sets(*, uploads(upload_id, status, record_count, upload_version, uploaded_at))')
+    .select(
+      'competition_id, competition_name, contest_date, top_k, status, created_at, contest_sets(set_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, uploads(upload_id, status, record_count, upload_version, uploaded_at))',
+    )
     .order('created_at', { ascending: false });
 
   const allCompetitions = competitions ?? [];
@@ -188,6 +190,7 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
 
                         <Link
                           href={`/upload/${set.set_id}`}
+                          prefetch={false}
                           className="inline-block w-full text-center px-4 py-2 text-xs font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-500 transition-colors">
                           {autoStatus === 'APPROVED'
                             ? 'Open Live Auto-Sync'

@@ -14,19 +14,20 @@ export default async function TieBreakerRulesPage({ params }: PageProps) {
   const { profile, supabase } = await requireSuperAdmin();
   const { id: competitionId } = await params;
 
-  const { data: competition } = await supabase
-    .from('competitions')
-    .select('competition_id, competition_name, slug')
-    .eq('competition_id', competitionId)
-    .single();
+  const [{ data: competition }, { data: rules }] = await Promise.all([
+    supabase
+      .from('competitions')
+      .select('competition_id, competition_name, slug')
+      .eq('competition_id', competitionId)
+      .single(),
+    supabase
+      .from('tie_breaker_rules')
+      .select('*')
+      .eq('competition_id', competitionId)
+      .order('priority', { ascending: true }),
+  ]);
 
   if (!competition) notFound();
-
-  const { data: rules } = await supabase
-    .from('tie_breaker_rules')
-    .select('*')
-    .eq('competition_id', competitionId)
-    .order('priority', { ascending: true });
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
