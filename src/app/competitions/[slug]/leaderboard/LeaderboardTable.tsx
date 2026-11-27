@@ -39,7 +39,6 @@ interface LeaderboardTableProps {
 
 export function LeaderboardTable({
   entries: initialEntries,
-  sets: initialSets,
   topK,
   competitionName,
   competitionSlug,
@@ -50,7 +49,6 @@ export function LeaderboardTable({
 }: LeaderboardTableProps) {
   const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardRowItem[]>(initialEntries);
-  const [sets, setSets] = useState<ContestSetItem[]>(initialSets);
   const [tieBreakers, setTieBreakers] = useState<{ criterion: string; direction: string }[] | undefined>(
     initialTieBreakers,
   );
@@ -58,7 +56,6 @@ export function LeaderboardTable({
   const versionRef = useRef<number | null>(snapshotVersion);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSetId, setSelectedSetId] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'QUALIFIED' | 'BOUNDARY'>('ALL');
   const [isProjectorMode, setIsProjectorMode] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(!isDraft);
@@ -131,7 +128,6 @@ export function LeaderboardTable({
 
         versionRef.current = payload.snapshot.version;
         if (payload.entries) setEntries(payload.entries);
-        if (payload.sets) setSets(payload.sets);
         if (payload.tieBreakers) setTieBreakers(payload.tieBreakers);
         setLastUpdated(payload.snapshot.published_at || payload.snapshot.generated_at);
       } catch {
@@ -159,10 +155,6 @@ export function LeaderboardTable({
   // Filtered entries
   const filtered = useMemo(() => {
     return entries.filter((item) => {
-      // Set filter
-      if (selectedSetId !== 'ALL' && item.set_id !== selectedSetId) {
-        return false;
-      }
       // Status filter
       if (statusFilter === 'QUALIFIED' && item.qualification_status !== 'QUALIFIED') {
         return false;
@@ -175,14 +167,13 @@ export function LeaderboardTable({
         const q = searchQuery.toLowerCase().trim();
         const matchesName = item.participant_name.toLowerCase().includes(q);
         const matchesId = item.external_id.toLowerCase().includes(q);
-        const matchesSet = item.set_name.toLowerCase().includes(q) || item.set_code.toLowerCase().includes(q);
-        if (!matchesName && !matchesId && !matchesSet) {
+        if (!matchesName && !matchesId) {
           return false;
         }
       }
       return true;
     });
-  }, [entries, selectedSetId, statusFilter, searchQuery]);
+  }, [entries, statusFilter, searchQuery]);
 
   // Determine shared ranks (Olympic tie indicator)
   const rankCounts = useMemo(() => {
@@ -212,7 +203,6 @@ export function LeaderboardTable({
       'Rank',
       'HackerRank Handle',
       'Full Name',
-      'Contest Set',
       'Total Score',
       'Time Taken (MM:SS)',
       'Qualification Status',
@@ -222,7 +212,6 @@ export function LeaderboardTable({
       e.overall_rank,
       `"${e.external_id.replace(/"/g, '""')}"`,
       `"${e.participant_name.replace(/"/g, '""')}"`,
-      `"${e.set_name.replace(/"/g, '""')}"`,
       e.total_score,
       formatTimeTaken(e.penalty, ''),
       e.qualification_status,
@@ -317,7 +306,7 @@ export function LeaderboardTable({
       )}
 
       {/* Podium Section (Rank 1, 2, 3) */}
-      {statusFilter === 'ALL' && selectedSetId === 'ALL' && !searchQuery && entries.length >= 3 && (
+      {statusFilter === 'ALL' && !searchQuery && entries.length >= 3 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* 2nd Place */}
           {podium.rank2 && (
@@ -339,11 +328,6 @@ export function LeaderboardTable({
                 <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mt-1">
                   @{podium.rank2.external_id}
                 </p>
-                <div className="mt-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                    {podium.rank2.set_name}
-                  </span>
-                </div>
               </div>
 
               <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-baseline">
@@ -380,11 +364,6 @@ export function LeaderboardTable({
                 <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mt-1">
                   @{podium.rank1.external_id}
                 </p>
-                <div className="mt-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                    {podium.rank1.set_name}
-                  </span>
-                </div>
               </div>
 
               <div className="mt-6 pt-4 border-t border-amber-500/20 flex justify-between items-baseline">
@@ -421,11 +400,6 @@ export function LeaderboardTable({
                 <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mt-1">
                   @{podium.rank3.external_id}
                 </p>
-                <div className="mt-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                    {podium.rank3.set_name}
-                  </span>
-                </div>
               </div>
 
               <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-baseline">
@@ -444,7 +418,7 @@ export function LeaderboardTable({
         </div>
       )}
 
-      {/* Control Bar: Search, Contest Set Filter, Status Filter, Projector Toggle, Export */}
+      {/* Control Bar: Search, Status Filter, Projector Toggle, Export */}
       <div className={`rounded-xl border p-4 sm:p-6 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 ${
         isProjectorMode
           ? 'border-zinc-800 bg-zinc-900'
@@ -456,7 +430,7 @@ export function LeaderboardTable({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, handle, or set..."
+            placeholder="Search by name or handle..."
             className={`w-full h-10 text-xs sm:text-sm rounded-lg border px-4 placeholder-zinc-400 focus:outline-none focus:border-indigo-600 ${
               isProjectorMode
                 ? 'border-zinc-700 bg-zinc-800 text-white'
@@ -471,40 +445,6 @@ export function LeaderboardTable({
               Clear
             </button>
           )}
-        </div>
-
-        {/* Set Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
-          <button
-            onClick={() => setSelectedSetId('ALL')}
-            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-              selectedSetId === 'ALL'
-                ? 'bg-indigo-600 text-white'
-                : isProjectorMode
-                ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-            }`}
-          >
-            All sets ({entries.length})
-          </button>
-          {sets.map((set) => {
-            const count = entries.filter((e) => e.set_id === set.set_id).length;
-            return (
-              <button
-                key={set.set_id}
-                onClick={() => setSelectedSetId(set.set_id)}
-                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                  selectedSetId === set.set_id
-                    ? 'bg-indigo-600 text-white'
-                    : isProjectorMode
-                    ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                }`}
-              >
-                {set.set_name} ({count})
-              </button>
-            );
-          })}
         </div>
 
         {/* View Toggles & Actions */}
@@ -585,7 +525,6 @@ export function LeaderboardTable({
             <tr>
               <th className="px-6 py-4 w-20">Rank</th>
               <th className="px-6 py-4">Contestant</th>
-              <th className="px-6 py-4">Contest set</th>
               <th className="px-6 py-4 text-right">Score</th>
               <th className="px-6 py-4 text-right">Time Taken</th>
               <th className="px-6 py-4 text-center">Status</th>
@@ -594,7 +533,7 @@ export function LeaderboardTable({
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 text-xs">
+                <td colSpan={5} className="px-6 py-12 text-center text-zinc-500 text-xs">
                   No contestants match your current filters.
                 </td>
               </tr>
@@ -675,17 +614,6 @@ export function LeaderboardTable({
                       </div>
                     </td>
 
-                    {/* Contest Set */}
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                        isProjectorMode
-                          ? 'bg-zinc-800 text-zinc-300 border border-zinc-700'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700'
-                      }`}>
-                        {item.set_name}
-                      </span>
-                    </td>
-
                     {/* Total Score */}
                     <td className="px-6 py-4 text-right">
                       <span className={`font-mono font-semibold tabular-nums ${isProjectorMode ? 'text-xl text-white' : 'text-sm text-zinc-900 dark:text-zinc-50'}`}>
@@ -728,8 +656,7 @@ export function LeaderboardTable({
       }`}>
         <div>
           Showing <span className="font-medium text-zinc-900 dark:text-zinc-200">{filtered.length}</span> of{' '}
-          <span className="font-medium text-zinc-900 dark:text-zinc-200">{entries.length}</span> contestants across{' '}
-          <span className="font-medium text-zinc-900 dark:text-zinc-200">{sets.length}</span> contest sets.
+          <span className="font-medium text-zinc-900 dark:text-zinc-200">{entries.length}</span> contestants.
           {lastUpdated && <span className="ml-2 font-mono">Snapshot generated: {new Date(lastUpdated).toLocaleTimeString()}</span>}
         </div>
         <div className="text-xs font-mono">
