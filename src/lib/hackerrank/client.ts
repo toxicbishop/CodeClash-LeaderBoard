@@ -52,9 +52,36 @@ export function isValidContestSlug(slug: unknown): slug is string {
   return typeof slug === 'string' && HACKERRANK_SLUG_REGEX.test(slug.trim());
 }
 
+const RESERVED_HACKERRANK_PATHS = new Set([
+  'contests',
+  'domains',
+  'challenges',
+  'dashboard',
+  'auth',
+  'login',
+  'signup',
+  'leaderboard',
+  'profile',
+  'settings',
+  'apply',
+  'work',
+  'products',
+  'pricing',
+  'interview',
+  'skills-verification',
+  'community',
+  'notifications',
+  'about-us',
+  'careers',
+  'terms-of-service',
+  'privacy',
+  'blog',
+]);
+
 /**
- * Extracts a safe HackerRank contest slug from either a raw slug
- * (e.g. "codeclash-2026-setA") or a HackerRank contest URL
+ * Extracts a safe HackerRank contest slug from a raw slug
+ * (e.g. "codeclash-2026-setA"), a short contest URL
+ * (e.g. "https://www.hackerrank.com/ccdemoseta"), or a full contest URL
  * (e.g. "https://www.hackerrank.com/contests/codeclash-2026-setA/leaderboard").
  * Returns null for invalid slugs or non-HackerRank URLs.
  */
@@ -67,17 +94,29 @@ export function extractContestSlug(input: unknown): string | null {
     return trimmed;
   }
 
-  // Only attempt URL extraction when the input looks like a HackerRank contest URL
-  if (/^(?:https?:\/\/)?(?:www\.)?hackerrank\.com\/contests\//i.test(trimmed)) {
+  // Only attempt URL extraction when the input looks like a HackerRank URL
+  if (/^(?:https?:\/\/)?(?:www\.)?hackerrank\.com(?:\/|$)/i.test(trimmed)) {
     try {
       const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
       const parsed = new URL(normalizedUrl);
       if (parsed.hostname !== 'www.hackerrank.com' && parsed.hostname !== 'hackerrank.com') {
         return null;
       }
-      const match = parsed.pathname.match(/^\/contests\/([a-zA-Z0-9_-]+)(?:\/.*)?$/);
-      if (match && isValidContestSlug(match[1])) {
-        return match[1];
+
+      // Standard contest URL: /contests/<slug>[/...]
+      const contestMatch = parsed.pathname.match(/^\/contests\/([a-zA-Z0-9_-]+)(?:\/.*)?$/);
+      if (contestMatch && isValidContestSlug(contestMatch[1])) {
+        return contestMatch[1];
+      }
+
+      // Short contest share URL: /<slug>[/]
+      const shortMatch = parsed.pathname.match(/^\/([a-zA-Z0-9_-]+)\/?$/);
+      if (
+        shortMatch &&
+        !RESERVED_HACKERRANK_PATHS.has(shortMatch[1].toLowerCase()) &&
+        isValidContestSlug(shortMatch[1])
+      ) {
+        return shortMatch[1];
       }
     } catch {
       return null;

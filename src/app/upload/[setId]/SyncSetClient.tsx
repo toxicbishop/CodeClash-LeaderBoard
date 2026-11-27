@@ -351,7 +351,7 @@ export default function SyncSetClient({
           HackerRank Contest Slug or URL
         </label>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          Enter the slug from hackerrank.com/contests/[slug] or paste the full contest URL
+          Enter the contest slug or paste the HackerRank contest URL
         </p>
         <input
           type="text"
@@ -360,7 +360,7 @@ export default function SyncSetClient({
           disabled={inputsLocked}
           required
           className="mt-1.5 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="e.g. codeclash-2026-setA"
+          placeholder="Enter Slug or URL"
         />
       </div>
 

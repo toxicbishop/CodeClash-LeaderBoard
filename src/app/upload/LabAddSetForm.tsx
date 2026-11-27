@@ -150,7 +150,7 @@ export function LabAddSetForm({
               required
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              placeholder="ccfinal or https://www.hackerrank.com/contests/ccfinal"
+              placeholder="Enter Slug or URL"
               className="mt-1 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>

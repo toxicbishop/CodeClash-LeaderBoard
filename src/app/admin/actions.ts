@@ -171,7 +171,7 @@ export async function createContestSet(formData: FormData): Promise<ActionRespon
   if (!extractedSlug) {
     return {
       error:
-        'Invalid HackerRank slug. Enter the contest slug (e.g. codeclash-2026-setA) or a valid hackerrank.com/contests/<slug> URL.',
+        'Invalid HackerRank slug. Enter the contest slug (e.g. ccdemoseta) or a valid hackerrank.com/<slug> or hackerrank.com/contests/<slug> URL.',
     };
   }
 

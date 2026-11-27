@@ -65,7 +65,7 @@ export async function upsertLabContestSetAction(
   if (!extractedSlug) {
     return {
       error:
-        'Invalid HackerRank slug. Enter the contest slug (e.g. codeclash-2026-setA) or a valid hackerrank.com/contests/<slug> URL.',
+        'Invalid HackerRank slug. Enter the contest slug (e.g. ccdemoseta) or a valid hackerrank.com/<slug> or hackerrank.com/contests/<slug> URL.',
     };
   }
 
@@ -186,7 +186,7 @@ export async function syncContestSetFromHackerRank(
   const slug = extractContestSlug(rawSlugInput);
   if (!slug) {
     return {
-      error: `Invalid HackerRank contest slug: "${rawSlugInput}". Enter the contest slug (e.g. codeclash-2026-setA) or a valid hackerrank.com/contests/<slug> URL.`,
+      error: `Invalid HackerRank contest slug: "${rawSlugInput}". Enter the contest slug (e.g. ccdemoseta) or a valid hackerrank.com/<slug> or hackerrank.com/contests/<slug> URL.`,
     };
   }
 
