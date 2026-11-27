@@ -29,7 +29,7 @@ export async function createCompetitionSnapshot(
   const [
     { data: competition, error: compError },
     { data: rules },
-    { data: participants, error: partError },
+    { data: activeSets, error: setsError },
     { data: lastSnap },
   ] = await Promise.all([
     adminClient
@@ -43,13 +43,10 @@ export async function createCompetitionSnapshot(
       .eq('competition_id', competitionId)
       .order('priority', { ascending: true }),
     adminClient
-      .from('participants')
-      .select(
-        'participant_id, external_id, participant_name, set_id, contest_sets!inner(set_name, is_active), results(total_score, problems_solved, penalty, final_submission_time, incorrect_submissions), uploads!inner(status)',
-      )
+      .from('contest_sets')
+      .select('set_id')
       .eq('competition_id', competitionId)
-      .eq('uploads.status', 'APPROVED')
-      .eq('contest_sets.is_active', true),
+      .eq('is_active', true),
     adminClient
       .from('leaderboard_snapshots')
       .select('version')
@@ -62,6 +59,45 @@ export async function createCompetitionSnapshot(
   if (compError || !competition) {
     return { error: 'Competition not found.' };
   }
+
+  const activeSetIds = (activeSets ?? []).map((s) => s.set_id);
+  if (setsError || activeSetIds.length === 0) {
+    return { error: 'No approved submissions found to consolidate.' };
+  }
+
+  // Pick only the latest APPROVED upload per active contest set so historical
+  // approved uploads never produce duplicate leaderboard entries.
+  const { data: approvedUploads, error: uploadsError } = await adminClient
+    .from('uploads')
+    .select('upload_id, set_id, upload_version')
+    .eq('competition_id', competitionId)
+    .eq('status', 'APPROVED')
+    .in('set_id', activeSetIds)
+    .order('upload_version', { ascending: false });
+
+  if (uploadsError) {
+    return { error: `Failed to fetch approved uploads: ${uploadsError.message}` };
+  }
+
+  const latestUploadBySet = new Map<string, string>();
+  for (const upload of approvedUploads ?? []) {
+    if (!latestUploadBySet.has(upload.set_id)) {
+      latestUploadBySet.set(upload.set_id, upload.upload_id);
+    }
+  }
+
+  const latestUploadIds = Array.from(latestUploadBySet.values());
+  if (latestUploadIds.length === 0) {
+    return { error: 'No approved submissions found to consolidate.' };
+  }
+
+  const { data: participants, error: partError } = await adminClient
+    .from('participants')
+    .select(
+      'participant_id, external_id, participant_name, set_id, contest_sets!inner(set_name, is_active), results(total_score, problems_solved, penalty, final_submission_time, incorrect_submissions)',
+    )
+    .eq('competition_id', competitionId)
+    .in('upload_id', latestUploadIds);
 
   const activeRules: TieBreakerRule[] =
     rules && rules.length > 0

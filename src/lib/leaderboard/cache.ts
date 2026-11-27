@@ -1,5 +1,5 @@
 import { cacheLife, cacheTag } from 'next/cache';
-import { createPublicClient } from '@/lib/supabase/server';
+import { createAdminClient, createPublicClient } from '@/lib/supabase/server';
 import type { Competition } from '@/types/database';
 
 export interface CachedLeaderboardRow {
@@ -74,7 +74,10 @@ export async function getCachedLeaderboardData(
   cacheTag(LEADERBOARD_CACHE_TAG);
   cacheLife('hours');
 
-  const supabase = createPublicClient();
+  // Cookie-free public read (scoped strictly to PUBLISHED competitions/snapshots)
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createAdminClient()
+    : createPublicClient();
 
   let activeComp: Competition | null = null;
   let currentSnapshot: CachedSnapshot | null = null;
