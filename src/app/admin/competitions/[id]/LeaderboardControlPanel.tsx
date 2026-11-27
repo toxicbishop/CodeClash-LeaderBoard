@@ -7,6 +7,7 @@ import { generateLeaderboard, publishLeaderboard, endLeaderboard } from '@/app/a
 
 export interface Snapshot {
   snapshot_id: string;
+  round_number?: number;
   version: number;
   status: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
   generated_at: string;
@@ -19,6 +20,7 @@ interface LeaderboardControlPanelProps {
   competitionStatus: string;
   snapshots: Snapshot[];
   hasApprovedUploads: boolean;
+  availableRounds?: number[];
 }
 
 export function LeaderboardControlPanel({
@@ -27,23 +29,25 @@ export function LeaderboardControlPanel({
   competitionStatus,
   snapshots,
   hasApprovedUploads,
+  availableRounds = [1],
 }: LeaderboardControlPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [selectedRound, setSelectedRound] = useState<number>(availableRounds[0] ?? 1);
   const isLive = competitionStatus === 'PUBLISHED' || snapshots.some((s) => s.status === 'PUBLISHED');
 
   function handleGenerate() {
     setErrorMsg(null);
     setSuccessMsg(null);
     startTransition(async () => {
-      const res = await generateLeaderboard(competitionId);
+      const res = await generateLeaderboard(competitionId, selectedRound);
       if (res?.error) {
         setErrorMsg(res.error);
       } else {
         const data = res?.data as { version?: number } | undefined;
-        setSuccessMsg(`Leaderboard snapshot v${data?.version ?? ''} generated and published live!`);
+        setSuccessMsg(`Round ${selectedRound} snapshot v${data?.version ?? ''} generated and published live!`);
         router.refresh();
       }
     });
@@ -150,6 +154,21 @@ export function LeaderboardControlPanel({
             Configure tiebreakers
           </Link>
 
+          {availableRounds.length > 1 && (
+            <select
+              value={selectedRound}
+              onChange={(e) => setSelectedRound(Number(e.target.value))}
+              aria-label="Target Round"
+              className="px-2.5 py-2 text-xs font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
+            >
+              {availableRounds.map((r) => (
+                <option key={r} value={r}>
+                  Round {r}
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             type="button"
             disabled={isPending || !hasApprovedUploads}
@@ -175,6 +194,7 @@ export function LeaderboardControlPanel({
             <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-xs font-semibold uppercase text-zinc-500 tracking-wider">
               <tr>
                 <th className="px-6 py-3.5">Version</th>
+                <th className="px-6 py-3.5">Round</th>
                 <th className="px-6 py-3.5">Status</th>
                 <th className="px-6 py-3.5">Generated At</th>
                 <th className="px-6 py-3.5">Published At</th>
@@ -190,6 +210,9 @@ export function LeaderboardControlPanel({
                   <tr key={snap.snapshot_id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
                     <td className="px-6 py-4 font-mono font-bold text-zinc-900 dark:text-zinc-100">
                       v{snap.version}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-zinc-600 dark:text-zinc-300">
+                      Round {snap.round_number ?? 1}
                     </td>
                     <td className="px-6 py-4">
                       <span

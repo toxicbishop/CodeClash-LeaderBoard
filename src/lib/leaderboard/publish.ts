@@ -15,16 +15,22 @@ export interface SnapshotResult {
 }
 
 /**
- * Consolidates all APPROVED uploads for a competition, computes rankings using
- * the competition's tie-breaker rules, and creates either a DRAFT snapshot or an
- * immediately PUBLISHED snapshot (superseding prior published snapshots).
+ * Consolidates all APPROVED uploads for a competition round, deduplicates any
+ * cross-set handles within that round (keeping the lower time_taken), computes
+ * rankings using the competition's tie-breaker rules, and creates either a DRAFT
+ * snapshot or an immediately PUBLISHED snapshot (superseding prior snapshots of
+ * that same round only).
  */
 export async function createCompetitionSnapshot(
   competitionId: string,
   actorUserId: string,
-  options: { publishImmediately: boolean; auditAction?: string },
+  options: { publishImmediately: boolean; auditAction?: string; roundNumber?: number },
 ): Promise<SnapshotResult> {
   const adminClient = createAdminClient();
+  const targetRound =
+    typeof options.roundNumber === 'number' && Number.isFinite(options.roundNumber) && options.roundNumber > 0
+      ? Math.floor(options.roundNumber)
+      : 1;
 
   const [
     { data: competition, error: compError },
@@ -44,7 +50,7 @@ export async function createCompetitionSnapshot(
       .order('priority', { ascending: true }),
     adminClient
       .from('contest_sets')
-      .select('set_id')
+      .select('set_id, round_number')
       .eq('competition_id', competitionId)
       .eq('is_active', true),
     adminClient
@@ -60,7 +66,9 @@ export async function createCompetitionSnapshot(
     return { error: 'Competition not found.' };
   }
 
-  const activeSetIds = (activeSets ?? []).map((s) => s.set_id);
+  const activeSetIds = (activeSets ?? [])
+    .filter((s) => ((s as { round_number?: number | null }).round_number ?? 1) === targetRound)
+    .map((s) => s.set_id);
   if (setsError || activeSetIds.length === 0) {
     return { error: 'No approved submissions found to consolidate.' };
   }
@@ -161,7 +169,27 @@ export async function createCompetitionSnapshot(
     };
   });
 
-  const ranked = computeRankings(flatInput, activeRules, competition.top_k);
+  // Deduplicate same-round cross-set handles (keep faster time_taken / ignore 2nd submission)
+  const dedupedByHandle = new Map<string, (typeof flatInput)[number]>();
+  for (const item of flatInput) {
+    const normalizedHandle = item.external_id.trim().toLowerCase();
+    const existing = dedupedByHandle.get(normalizedHandle);
+    if (!existing) {
+      dedupedByHandle.set(normalizedHandle, item);
+      continue;
+    }
+    const itemTime = item.penalty ?? Number.POSITIVE_INFINITY;
+    const existingTime = existing.penalty ?? Number.POSITIVE_INFINITY;
+    if (itemTime < existingTime) {
+      dedupedByHandle.set(normalizedHandle, item);
+    }
+  }
+
+  const ranked = computeRankings(
+    Array.from(dedupedByHandle.values()),
+    activeRules,
+    competition.top_k,
+  );
 
   const newVersion = (lastSnap?.version ?? 0) + 1;
   const now = new Date().toISOString();
@@ -170,6 +198,7 @@ export async function createCompetitionSnapshot(
     .from('leaderboard_snapshots')
     .insert({
       competition_id: competitionId,
+      round_number: targetRound,
       version: newVersion,
       generated_by: actorUserId,
       ...(options.publishImmediately
@@ -215,7 +244,12 @@ export async function createCompetitionSnapshot(
         (options.publishImmediately ? 'LEADERBOARD_AUTO_PUBLISHED' : 'LEADERBOARD_GENERATED'),
       entity_type: 'leaderboard_snapshot',
       entity_id: snapshot.snapshot_id,
-      details: { competition_id: competitionId, version: newVersion, total_entries: entries.length },
+      details: {
+        competition_id: competitionId,
+        round_number: targetRound,
+        version: newVersion,
+        total_entries: entries.length,
+      },
     }),
   ];
 
@@ -225,6 +259,7 @@ export async function createCompetitionSnapshot(
         .from('leaderboard_snapshots')
         .update({ status: 'SUPERSEDED' })
         .eq('competition_id', competitionId)
+        .eq('round_number', targetRound)
         .neq('snapshot_id', snapshot.snapshot_id),
       adminClient
         .from('competitions')

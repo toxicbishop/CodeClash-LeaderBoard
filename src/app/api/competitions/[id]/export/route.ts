@@ -118,9 +118,11 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     }
 
     // 4. Construct CSV with official metadata header
+    const roundNum = (snapshot as { round_number?: number | null }).round_number ?? 1;
     const metadataHeader = [
       `# Official Leaderboard Export`,
       `# Competition: ${sanitizeCsvValue(competition.competition_name)} (${competition.slug})`,
+      `# Round: Round ${roundNum}`,
       `# Snapshot Version: v${snapshot.version} [${snapshot.status}]`,
       `# Generated At: ${snapshot.generated_at}`,
       `# Published At: ${snapshot.published_at || 'Unpublished (Draft)'}`,

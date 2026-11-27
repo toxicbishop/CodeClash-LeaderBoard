@@ -55,6 +55,7 @@ export interface Competition {
 export interface ContestSet {
   set_id: string;
   competition_id: string;
+  round_number: number;   // 1, 2, ...
   set_name: string;       // "Set A"
   set_code: string;       // "setA"
   hackerrank_slug: string; // "codeclash-2026-setA"
@@ -134,6 +135,7 @@ export interface Result {
 export interface LeaderboardSnapshot {
   snapshot_id: string;
   competition_id: string;
+  round_number: number;
   version: number;
   generated_by: string | null;
   approved_by: string | null;

@@ -149,13 +149,18 @@ export async function createContestSet(formData: FormData): Promise<ActionRespon
   const competitionId = formData.get('competition_id') as string;
   const setName = formData.get('set_name') as string;
   const setCode = formData.get('set_code') as string;
-  const hackerrankSlug = formData.get('hackerrank_slug') as string;
+  const roundsRaw = formData.get('rounds_count') as string | null;
   const rawCookie = (formData.get('hr_session_cookie') as string | null)
     ?.replace(/[\r\n]+/g, '')
     .trim();
 
-  if (!competitionId || !setName?.trim() || !setCode?.trim() || !hackerrankSlug?.trim()) {
-    return { error: 'Competition ID, set name, set code, and HackerRank slug are all required.' };
+  const parsedRounds = roundsRaw ? Number.parseInt(roundsRaw, 10) : 1;
+  if (!Number.isFinite(parsedRounds) || parsedRounds < 1 || parsedRounds > 10) {
+    return { error: 'Number of rounds must be between 1 and 10.' };
+  }
+
+  if (!competitionId || !setName?.trim() || !setCode?.trim()) {
+    return { error: 'Competition ID, set name, and set code are required.' };
   }
 
   if (!isValidUuid(competitionId)) {
@@ -167,26 +172,62 @@ export async function createContestSet(formData: FormData): Promise<ActionRespon
     return { error: 'Set code must be 20 characters or fewer.' };
   }
 
-  const extractedSlug = extractContestSlug(hackerrankSlug);
-  if (!extractedSlug) {
-    return {
-      error:
-        'Invalid HackerRank slug. Enter the contest slug (e.g. ccdemoseta) or a valid hackerrank.com/<slug> or hackerrank.com/contests/<slug> URL.',
-    };
+  // Collect per-round HackerRank slugs (backwards-compatible with single hackerrank_slug input)
+  const roundEntries: Array<{ round_number: number; hackerrank_slug: string }> = [];
+  if (parsedRounds === 1) {
+    const rawSlug =
+      (formData.get('round_slug_1') as string | null) ??
+      (formData.get('hackerrank_slug') as string | null) ??
+      '';
+    if (!rawSlug.trim()) {
+      return { error: 'Competition ID, set name, set code, and HackerRank slug are all required.' };
+    }
+    const extractedSlug = extractContestSlug(rawSlug);
+    if (!extractedSlug) {
+      return {
+        error:
+          'Invalid HackerRank slug. Enter the contest slug (e.g. ccdemoseta) or a valid hackerrank.com/<slug> or hackerrank.com/contests/<slug> URL.',
+      };
+    }
+    roundEntries.push({ round_number: 1, hackerrank_slug: extractedSlug });
+  } else {
+    for (let r = 1; r <= parsedRounds; r++) {
+      const rawSlug = (formData.get(`round_slug_${r}`) as string | null) ?? '';
+      if (!rawSlug.trim()) {
+        return { error: `Round ${r} HackerRank contest slug or URL is required.` };
+      }
+      const extractedSlug = extractContestSlug(rawSlug);
+      if (!extractedSlug) {
+        return {
+          error: `Invalid HackerRank slug for Round ${r}. Enter a valid slug or hackerrank.com contest URL.`,
+        };
+      }
+      roundEntries.push({ round_number: r, hackerrank_slug: extractedSlug });
+    }
   }
 
-  const { error } = await supabase.from('contest_sets').insert({
+  const encryptedCookie = rawCookie ? encryptSecret(rawCookie) : undefined;
+  const rows = roundEntries.map((entry) => ({
     competition_id: competitionId,
+    round_number: entry.round_number,
     set_name: setName.trim(),
     set_code: normalizedSetCode,
-    hackerrank_slug: extractedSlug,
-    ...(rawCookie ? { hr_session_cookie: encryptSecret(rawCookie) } : {}),
-  });
+    hackerrank_slug: entry.hackerrank_slug,
+    ...(encryptedCookie ? { hr_session_cookie: encryptedCookie } : {}),
+  }));
+
+  const { error } = await supabase
+    .from('contest_sets')
+    .insert(rows.length === 1 ? rows[0] : rows);
 
   if (error) {
-    if (error.code === '23505' || error.message.includes('contest_sets_competition_id_set_code_key')) {
+    if (
+      error.code === '23505' ||
+      error.message.includes('contest_sets_competition_id_set_code_key') ||
+      error.message.includes('contest_sets_competition_id_round_number_set_code_key')
+    ) {
       return {
-        error: `A contest set with code "${normalizedSetCode}" already exists in this competition. Use a different Set Code (e.g. setB) or delete the existing set first.`,
+        error: `A contest set with code "${normalizedSetCode}" already exists for one of these rounds in this competition. Use a different Set Code (e.g. setB) or delete the existing set first.`,
       };
     }
     return { error: error.message };
@@ -197,7 +238,13 @@ export async function createContestSet(formData: FormData): Promise<ActionRespon
     user_id: user.id,
     action: 'CONTEST_SET_CREATED',
     entity_type: 'contest_set',
-    details: { set_name: setName.trim(), set_code: normalizedSetCode, hackerrank_slug: extractedSlug },
+    details: {
+      set_name: setName.trim(),
+      set_code: normalizedSetCode,
+      rounds_count: parsedRounds,
+      hackerrank_slug: roundEntries[0].hackerrank_slug,
+      round_slugs: roundEntries,
+    },
   });
 
   revalidatePath(`/admin/competitions/${competitionId}`);
@@ -289,13 +336,15 @@ export async function approveContestSetAutoSync(setId: string): Promise<ActionRe
   const adminClient = await createAdminClient();
   const { data: targetSet, error: setErr } = await adminClient
     .from('contest_sets')
-    .select('set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name')
+    .select('set_id, competition_id, round_number, set_name, set_code, hackerrank_slug, lab_incharge_name')
     .eq('set_id', setId)
     .maybeSingle();
 
   if (setErr || !targetSet) {
     return { error: 'Contest set not found.' };
   }
+
+  const targetRound = (targetSet as { round_number?: number | null }).round_number ?? 1;
 
   const now = new Date().toISOString();
 
@@ -354,10 +403,11 @@ export async function approveContestSetAutoSync(setId: string): Promise<ActionRe
     },
   });
 
-  // 3. Immediately publish live leaderboard if any approved participants exist
+  // 3. Immediately publish live leaderboard for this set's round if any approved participants exist
   const snapRes = await createCompetitionSnapshot(targetSet.competition_id, user.id, {
     publishImmediately: true,
     auditAction: 'LEADERBOARD_AUTO_PUBLISHED',
+    roundNumber: targetRound,
   });
 
   revalidatePath('/admin');
@@ -579,7 +629,10 @@ export async function rejectUpload(uploadId: string, reason: string): Promise<Ac
 // Leaderboard generation & publication (Phase 3 spec)
 // ---------------------------------------------------------------------------
 
-export async function generateLeaderboard(competitionId: string): Promise<ActionResponse> {
+export async function generateLeaderboard(
+  competitionId: string,
+  roundNumber?: number,
+): Promise<ActionResponse> {
   const { user } = await requireSuperAdmin();
 
   if (!isValidUuid(competitionId)) {
@@ -589,6 +642,7 @@ export async function generateLeaderboard(competitionId: string): Promise<Action
   return createCompetitionSnapshot(competitionId, user.id, {
     publishImmediately: true,
     auditAction: 'LEADERBOARD_PUBLISHED',
+    ...(roundNumber ? { roundNumber } : {}),
   });
 }
 
@@ -603,17 +657,20 @@ export async function publishLeaderboard(snapshotId: string): Promise<ActionResp
 
   const { data: snapshot, error: fetchError } = await adminClient
     .from('leaderboard_snapshots')
-    .select('competition_id, version')
+    .select('competition_id, round_number, version')
     .eq('snapshot_id', snapshotId)
     .single();
 
   if (fetchError || !snapshot) return { error: 'Snapshot not found.' };
 
-  // Mark all previous snapshots of this competition as SUPERSEDED
+  const targetRound = (snapshot as { round_number?: number | null }).round_number ?? 1;
+
+  // Mark previous snapshots of this competition round as SUPERSEDED
   await adminClient
     .from('leaderboard_snapshots')
     .update({ status: 'SUPERSEDED' })
     .eq('competition_id', snapshot.competition_id)
+    .eq('round_number', targetRound)
     .neq('snapshot_id', snapshotId);
 
   // Mark this snapshot as PUBLISHED

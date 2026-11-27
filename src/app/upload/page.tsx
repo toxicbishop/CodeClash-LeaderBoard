@@ -20,7 +20,7 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
   const { data: competitions } = await supabase
     .from('competitions')
     .select(
-      'competition_id, competition_name, contest_date, top_k, status, created_at, contest_sets(set_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, uploads(upload_id, status, record_count, upload_version, uploaded_at))',
+      'competition_id, competition_name, contest_date, top_k, status, created_at, contest_sets(set_id, round_number, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, uploads(upload_id, status, record_count, upload_version, uploaded_at))',
     )
     .order('created_at', { ascending: false });
 
@@ -125,7 +125,7 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
               competitionId={competition.competition_id}
               defaultInchargeName={profile.name}
               existingSets={
-                (competition.contest_sets as { set_code: string }[] | null) ?? []
+                (competition.contest_sets as { set_code: string; round_number?: number }[] | null) ?? []
               }
             />
 
@@ -138,11 +138,13 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(competition.contest_sets as {
-                    set_id: string; set_name: string; set_code: string; hackerrank_slug: string;
+                  {[...(competition.contest_sets as {
+                    set_id: string; round_number?: number; set_name: string; set_code: string; hackerrank_slug: string;
                     lab_incharge_name?: string | null; auto_sync_status?: string;
                     uploads: { upload_id: string; status: string; record_count: number | null; upload_version: number; uploaded_at: string }[]
-                  }[]).map((set) => {
+                  }[])]
+                    .sort((a, b) => (a.round_number ?? 1) - (b.round_number ?? 1) || a.set_code.localeCompare(b.set_code))
+                    .map((set) => {
                     const sortedUploads = [...(set.uploads ?? [])].sort((a, b) => b.upload_version - a.upload_version);
                     const latest = sortedUploads[0];
                     const autoStatus = set.auto_sync_status ?? 'PENDING';
@@ -168,7 +170,12 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
                         className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">{set.set_name}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-semibold">
+                                Round {set.round_number ?? 1}
+                              </span>
+                              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">{set.set_name}</h3>
+                            </div>
                             <p className="text-xs font-mono text-zinc-500 mt-0.5">{set.hackerrank_slug}</p>
                             {set.lab_incharge_name && (
                               <p className="text-[11px] text-zinc-500 mt-0.5">

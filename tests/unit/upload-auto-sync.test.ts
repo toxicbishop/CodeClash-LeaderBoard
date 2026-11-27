@@ -243,6 +243,7 @@ describe('Lab Admin One-Time Approval & Auto-Sync Workflow', () => {
     expect(publishSnapshotMock).toHaveBeenCalledWith(compId, superAdminId, {
       publishImmediately: true,
       auditAction: 'LEADERBOARD_AUTO_PUBLISHED',
+      roundNumber: 1,
     });
   });
 
@@ -312,5 +313,41 @@ describe('Lab Admin One-Time Approval & Auto-Sync Workflow', () => {
       expect.objectContaining({ hackerrank_slug: 'new-slug', auto_sync_status: 'PENDING' }),
     );
     expect(publishSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it('passes set round_number to createCompetitionSnapshot for Round 2 sets', async () => {
+    const setId = crypto.randomUUID();
+    const compId = crypto.randomUUID();
+    const superAdminId = crypto.randomUUID();
+    setupLabSession({
+      set_id: setId,
+      competition_id: compId,
+      round_number: 2,
+      set_name: 'Set A',
+      hackerrank_slug: 'cc-round2-seta',
+      lab_incharge_name: 'Prof. Kumar',
+      auto_sync_status: 'APPROVED',
+      auto_sync_approved_by: superAdminId,
+      competitions: { status: 'PUBLISHED' },
+    });
+
+    fetchHRMock.mockResolvedValue({
+      entries: [{ rank: 1, hacker: 'alice', score: 150, time_taken: 140, solved_challenges: 2 }],
+      total: 1,
+      slug: 'cc-round2-seta',
+    });
+    publishSnapshotMock.mockResolvedValue({
+      success: true,
+      data: { snapshot_id: crypto.randomUUID(), version: 4, total_entries: 1 },
+    });
+
+    const res = await syncContestSetFromHackerRank(setId, 'cc-round2-seta', undefined, 'Prof. Kumar');
+    expect(res.success).toBe(true);
+    expect(res.autoPublished).toBe(true);
+    expect(publishSnapshotMock).toHaveBeenCalledWith(compId, superAdminId, {
+      publishImmediately: true,
+      auditAction: 'LEADERBOARD_AUTO_PUBLISHED',
+      roundNumber: 2,
+    });
   });
 });

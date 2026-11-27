@@ -97,4 +97,44 @@ describe('GET /api/leaderboard', () => {
     expect(json.snapshot).toBeNull();
     expect(json.entries).toEqual([]);
   });
+
+  it('forwards explicit round parameter and signals update when currentRound advances', async () => {
+    cachedDataMock.mockResolvedValue({
+      status: 'PUBLISHED',
+      competition: { slug: 'cc-2026' },
+      snapshot: {
+        snapshot_id: 'snap-r1',
+        competition_id: 'comp-1',
+        round_number: 1,
+        version: 4,
+        generated_at: '2026-11-26T00:00:00Z',
+        published_at: '2026-11-26T00:00:00Z',
+        status: 'PUBLISHED',
+      },
+      currentRound: 2,
+      viewingRound: 1,
+      rounds: [
+        { round_number: 1, snapshot_version: 4, status: 'COMPLETED' },
+        { round_number: 2, snapshot_version: 5, status: 'CURRENT' },
+      ],
+      sets: [{ set_id: 's1', set_name: 'Set A', set_code: 'seta', round_number: 1 }],
+      tieBreakers: [],
+      entries: [{ entry_id: 'e1', overall_rank: 1 }],
+    });
+
+    const req = new NextRequest(
+      'http://localhost:3000/api/leaderboard?comp=cc-2026&round=1&currentRound=1&version=4',
+    );
+    const res = await GET(req);
+    const json = (await res.json()) as {
+      unchanged: boolean;
+      currentRound: number;
+      viewingRound: number;
+    };
+
+    expect(cachedDataMock).toHaveBeenCalledWith('cc-2026', 1);
+    expect(json.unchanged).toBe(false);
+    expect(json.currentRound).toBe(2);
+    expect(json.viewingRound).toBe(1);
+  });
 });

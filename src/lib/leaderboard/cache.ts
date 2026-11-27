@@ -21,21 +21,32 @@ export interface CachedContestSet {
   set_id: string;
   set_name: string;
   set_code: string;
+  round_number?: number;
 }
 
 export interface CachedSnapshot {
   snapshot_id: string;
   competition_id: string;
+  round_number?: number;
   version: number;
   generated_at: string;
   published_at: string | null;
   status: string;
 }
 
+export interface CachedRoundInfo {
+  round_number: number;
+  snapshot_version: number;
+  status: 'CURRENT' | 'COMPLETED';
+}
+
 export interface CachedLeaderboardPayload {
   status: 'PUBLISHED' | 'NOT_FOUND_FOR_SLUG' | 'NO_ACTIVE_COMPETITION';
   competition: Competition | null;
   snapshot: CachedSnapshot | null;
+  currentRound: number;
+  viewingRound: number;
+  rounds: CachedRoundInfo[];
   sets: CachedContestSet[];
   tieBreakers: { criterion: string; direction: string }[];
   entries: CachedLeaderboardRow[];
@@ -69,6 +80,7 @@ export const LEADERBOARD_CACHE_TAG = 'leaderboard';
  */
 export async function getCachedLeaderboardData(
   requestedSlug?: string,
+  requestedRound?: number,
 ): Promise<CachedLeaderboardPayload> {
   'use cache';
   cacheTag(LEADERBOARD_CACHE_TAG);
@@ -80,13 +92,13 @@ export async function getCachedLeaderboardData(
     : createPublicClient();
 
   let activeComp: Competition | null = null;
-  let currentSnapshot: CachedSnapshot | null = null;
+  let publishedSnapshots: CachedSnapshot[] = [];
 
   if (requestedSlug) {
     const { data: compWithSnap } = await supabase
       .from('competitions')
       .select(
-        'competition_id, slug, competition_name, description, contest_date, top_k, status, created_at, leaderboard_snapshots(snapshot_id, competition_id, version, generated_at, published_at, status)',
+        'competition_id, slug, competition_name, description, contest_date, top_k, status, created_at, leaderboard_snapshots(snapshot_id, competition_id, round_number, version, generated_at, published_at, status)',
       )
       .eq('slug', requestedSlug)
       .eq('status', 'PUBLISHED')
@@ -97,6 +109,9 @@ export async function getCachedLeaderboardData(
         status: 'NOT_FOUND_FOR_SLUG',
         competition: null,
         snapshot: null,
+        currentRound: 1,
+        viewingRound: 1,
+        rounds: [],
         sets: [],
         tieBreakers: [],
         entries: [],
@@ -105,17 +120,14 @@ export async function getCachedLeaderboardData(
 
     activeComp = compWithSnap as unknown as Competition;
     const snaps = (compWithSnap.leaderboard_snapshots as unknown as CachedSnapshot[]) ?? [];
-    currentSnapshot =
-      snaps
-        .filter((s) => Boolean(s) && s.status === 'PUBLISHED')
-        .sort((a, b) => b.version - a.version)[0] ?? null;
+    publishedSnapshots = snaps.filter((s) => Boolean(s) && s.status === 'PUBLISHED');
   }
 
   if (!activeComp) {
     const { data: latestSnapshots } = await supabase
       .from('leaderboard_snapshots')
       .select(
-        'snapshot_id, competition_id, version, generated_at, published_at, status, competitions!inner(competition_id, slug, competition_name, description, contest_date, top_k, status, created_at)',
+        'snapshot_id, competition_id, round_number, version, generated_at, published_at, status, competitions!inner(competition_id, slug, competition_name, description, contest_date, top_k, status, created_at)',
       )
       .eq('status', 'PUBLISHED')
       .eq('competitions.status', 'PUBLISHED')
@@ -126,14 +138,23 @@ export async function getCachedLeaderboardData(
     if (latestRow) {
       const joinedComp = latestRow.competitions;
       activeComp = (Array.isArray(joinedComp) ? joinedComp[0] : joinedComp) as Competition;
-      currentSnapshot = {
-        snapshot_id: latestRow.snapshot_id,
-        competition_id: latestRow.competition_id,
-        version: latestRow.version,
-        generated_at: latestRow.generated_at,
-        published_at: latestRow.published_at,
-        status: latestRow.status,
-      };
+      const { data: allPublished } = await supabase
+        .from('leaderboard_snapshots')
+        .select('snapshot_id, competition_id, round_number, version, generated_at, published_at, status')
+        .eq('competition_id', activeComp.competition_id)
+        .eq('status', 'PUBLISHED');
+
+      publishedSnapshots = (allPublished as unknown as CachedSnapshot[]) ?? [
+        {
+          snapshot_id: latestRow.snapshot_id,
+          competition_id: latestRow.competition_id,
+          round_number: (latestRow as { round_number?: number }).round_number ?? 1,
+          version: latestRow.version,
+          generated_at: latestRow.generated_at,
+          published_at: latestRow.published_at,
+          status: latestRow.status,
+        },
+      ];
     } else {
       const { data: competitions } = await supabase
         .from('competitions')
@@ -151,18 +172,47 @@ export async function getCachedLeaderboardData(
       status: 'NO_ACTIVE_COMPETITION',
       competition: null,
       snapshot: null,
+      currentRound: 1,
+      viewingRound: 1,
+      rounds: [],
       sets: [],
       tieBreakers: [],
       entries: [],
     };
   }
 
+  // Group published snapshots by round_number, keeping the highest version per round
+  const latestByRound = new Map<number, CachedSnapshot>();
+  for (const snap of publishedSnapshots) {
+    const r = snap.round_number ?? 1;
+    const prev = latestByRound.get(r);
+    if (!prev || snap.version > prev.version) {
+      latestByRound.set(r, snap);
+    }
+  }
+
+  const sortedRoundNumbers = Array.from(latestByRound.keys()).sort((a, b) => a - b);
+  const currentRound =
+    sortedRoundNumbers.length > 0 ? sortedRoundNumbers[sortedRoundNumbers.length - 1] : 1;
+  const viewingRound =
+    requestedRound && Number.isFinite(requestedRound) && latestByRound.has(requestedRound)
+      ? requestedRound
+      : currentRound;
+  const currentSnapshot = latestByRound.get(viewingRound) ?? null;
+
+  const rounds: CachedRoundInfo[] = sortedRoundNumbers.map((r) => ({
+    round_number: r,
+    snapshot_version: latestByRound.get(r)!.version,
+    status: r === currentRound ? 'CURRENT' : 'COMPLETED',
+  }));
+
   const [{ data: contestSetsData }, { data: tieBreakersData }, entriesResult] = await Promise.all([
     supabase
       .from('contest_sets')
-      .select('set_id, set_name, set_code')
+      .select('set_id, set_name, set_code, round_number')
       .eq('competition_id', activeComp.competition_id)
       .eq('is_active', true)
+      .order('round_number', { ascending: true })
       .order('set_code', { ascending: true }),
     supabase
       .from('tie_breaker_rules')
@@ -212,6 +262,9 @@ export async function getCachedLeaderboardData(
     status: 'PUBLISHED',
     competition: activeComp,
     snapshot: currentSnapshot,
+    currentRound,
+    viewingRound,
+    rounds,
     sets: (contestSetsData as CachedContestSet[]) || [],
     tieBreakers: (tieBreakersData as { criterion: string; direction: string }[]) || [],
     entries,

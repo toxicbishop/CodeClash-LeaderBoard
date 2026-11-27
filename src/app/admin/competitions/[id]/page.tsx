@@ -26,9 +26,10 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
     supabase
       .from('contest_sets')
       .select(
-        'set_id, competition_id, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)',
+        'set_id, competition_id, round_number, set_name, set_code, hackerrank_slug, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, uploads(upload_id, status, record_count, upload_version, uploaded_at, rejection_reason)',
       )
       .eq('competition_id', competitionId)
+      .order('round_number', { ascending: true })
       .order('set_code', { ascending: true }),
     supabase
       .from('leaderboard_snapshots')
@@ -110,6 +111,9 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                   >
                     <div className="text-xs space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-mono text-[11px] font-semibold">
+                          Round {(req as { round_number?: number }).round_number ?? 1}
+                        </span>
                         <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
                           {req.lab_incharge_name || 'Lab In-Charge'}
                         </span>
@@ -203,7 +207,12 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
                     return (
                       <tr key={set.set_id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
                         <td className="px-6 py-4 font-semibold text-zinc-900 dark:text-zinc-100">
-                          {set.set_name}
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-semibold">
+                              R{(set as { round_number?: number }).round_number ?? 1}
+                            </span>
+                            <span>{set.set_name}</span>
+                          </div>
                           <div className="text-[11px] font-mono text-zinc-400">{set.set_code}</div>
                           {set.lab_incharge_name && (
                             <div className="text-[11px] font-normal text-zinc-500 mt-0.5">
@@ -266,6 +275,9 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
             competitionStatus={competition.status}
             snapshots={(snapshots as unknown as Snapshot[]) || []}
             hasApprovedUploads={hasApprovedUploads}
+            availableRounds={Array.from(
+              new Set((sets ?? []).map((s) => (s as { round_number?: number }).round_number ?? 1)),
+            ).sort((a, b) => a - b)}
           />
         </div>
       </main>
