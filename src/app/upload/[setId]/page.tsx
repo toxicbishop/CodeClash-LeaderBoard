@@ -18,7 +18,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
     supabase
       .from('contest_sets')
       .select(
-        'set_id, competition_id, set_name, set_code, hackerrank_slug, hr_session_cookie, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, competitions(competition_name)',
+        'set_id, competition_id, round_number, set_name, set_code, hackerrank_slug, hr_session_cookie, lab_incharge_name, auto_sync_status, auto_sync_rejection_reason, created_at, competitions(competition_name)',
       )
       .eq('set_id', setId)
       .single(),
@@ -56,7 +56,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
           <div className="flex justify-between items-start">
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                Contest Set Ingestion
+                Contest Set Ingestion · Round {(set as { round_number?: number }).round_number ?? 1}
               </span>
               <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mt-1">
                 {set.set_name} ({set.set_code})

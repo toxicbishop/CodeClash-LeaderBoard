@@ -190,6 +190,54 @@ describe('Competition and Contest Set validation & duplicate handling', () => {
     expect(res.error).toMatch(/Invalid HackerRank slug/i);
   });
 
+  it('creates multiple round rows with shared set code and optional session cookie', async () => {
+    const compId = crypto.randomUUID();
+    const insertMock = vi.fn().mockResolvedValue({ error: null });
+
+    mockSuperAdminSession({ contest_sets: { insert: insertMock } });
+    serviceClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'audit_logs') return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        return {};
+      }),
+    });
+
+    const fd = new FormData();
+    fd.set('competition_id', compId);
+    fd.set('set_name', 'Set A');
+    fd.set('set_code', 'setA');
+    fd.set('rounds_count', '3');
+    fd.set('round_slug_1', 'cc-r1-seta');
+    fd.set('round_slug_2', 'https://www.hackerrank.com/contests/cc-r2-seta/leaderboard');
+    fd.set('round_slug_3', 'cc-r3-seta');
+
+    await expect(createContestSet(fd)).rejects.toThrow(`REDIRECT:/admin/competitions/${compId}`);
+
+    expect(insertMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        competition_id: compId,
+        round_number: 1,
+        set_name: 'Set A',
+        set_code: 'seta',
+        hackerrank_slug: 'cc-r1-seta',
+      }),
+      expect.objectContaining({
+        competition_id: compId,
+        round_number: 2,
+        set_name: 'Set A',
+        set_code: 'seta',
+        hackerrank_slug: 'cc-r2-seta',
+      }),
+      expect.objectContaining({
+        competition_id: compId,
+        round_number: 3,
+        set_name: 'Set A',
+        set_code: 'seta',
+        hackerrank_slug: 'cc-r3-seta',
+      }),
+    ]);
+  });
+
   it('requires a non-empty name and updates MASTER_LAB_ADMIN name in assignLabAdminName', async () => {
     const labUserId = crypto.randomUUID();
     mockSuperAdminSession();

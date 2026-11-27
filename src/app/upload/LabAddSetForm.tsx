@@ -5,12 +5,17 @@ import { upsertLabContestSetAction, type LabSetFormState } from '@/app/upload/ac
 
 interface ExistingSetMinimal {
   set_code: string;
+  round_number?: number;
 }
 
 const initialState: LabSetFormState = { error: null };
 
-function suggestNextSetCode(existingSets: ExistingSetMinimal[]): string {
-  const taken = new Set(existingSets.map((s) => s.set_code.trim().toLowerCase()));
+function suggestNextSetCode(existingSets: ExistingSetMinimal[], roundNumber: number): string {
+  const taken = new Set(
+    existingSets
+      .filter((s) => (s.round_number ?? 1) === roundNumber)
+      .map((s) => s.set_code.trim().toLowerCase()),
+  );
   for (let i = 0; i < 26; i++) {
     const letter = String.fromCharCode(65 + i);
     const candidate = `set${letter}`;
@@ -33,7 +38,8 @@ export function LabAddSetForm({
   const [isOpen, setIsOpen] = useState(existingSets.length === 0);
   const [state, formAction, isPending] = useActionState(upsertLabContestSetAction, initialState);
 
-  const suggestedCode = suggestNextSetCode(existingSets);
+  const [roundNumber, setRoundNumber] = useState(1);
+  const suggestedCode = suggestNextSetCode(existingSets, roundNumber);
   const suggestedLetter = suggestedCode.replace(/^set/i, '');
 
   const [inchargeName, setInchargeName] = useState(defaultInchargeName);
@@ -90,7 +96,23 @@ export function LabAddSetForm({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              Round
+            </label>
+            <input
+              name="round_number"
+              type="number"
+              min={1}
+              max={10}
+              required
+              value={roundNumber}
+              onChange={(e) => setRoundNumber(Math.max(1, Math.min(10, Number.parseInt(e.target.value, 10) || 1)))}
+              className="mt-1 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
               Lab In-Charge Name

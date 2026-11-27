@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatTimeTaken } from '@/lib/format/time';
+import type { CachedRoundInfo } from '@/lib/leaderboard/cache';
 
 export interface LeaderboardRowItem {
   entry_id: string;
@@ -35,6 +37,9 @@ interface LeaderboardTableProps {
   isDraft: boolean;
   tieBreakers?: { criterion: string; direction: string }[];
   lastUpdated?: string;
+  rounds?: CachedRoundInfo[];
+  currentRound?: number;
+  viewingRound?: number;
 }
 
 export function LeaderboardTable({
@@ -46,6 +51,9 @@ export function LeaderboardTable({
   isDraft,
   tieBreakers: initialTieBreakers,
   lastUpdated: initialLastUpdated,
+  rounds: initialRounds = [],
+  currentRound: initialCurrentRound = 1,
+  viewingRound = 1,
 }: LeaderboardTableProps) {
   const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardRowItem[]>(initialEntries);
@@ -53,6 +61,8 @@ export function LeaderboardTable({
     initialTieBreakers,
   );
   const [lastUpdated, setLastUpdated] = useState<string | undefined>(initialLastUpdated);
+  const [rounds, setRounds] = useState<CachedRoundInfo[]>(initialRounds);
+  const [currentRound, setCurrentRound] = useState<number>(initialCurrentRound);
   const versionRef = useRef<number | null>(snapshotVersion);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,6 +113,8 @@ export function LeaderboardTable({
       try {
         const params = new URLSearchParams();
         if (competitionSlug) params.set('comp', competitionSlug);
+        params.set('round', String(viewingRound));
+        params.set('currentRound', String(currentRound));
         if (versionRef.current !== null) params.set('version', String(versionRef.current));
 
         const res = await fetch(`/api/leaderboard?${params.toString()}`, {
@@ -113,6 +125,9 @@ export function LeaderboardTable({
         const payload = (await res.json()) as {
           unchanged?: boolean;
           status?: string;
+          currentRound?: number;
+          viewingRound?: number;
+          rounds?: CachedRoundInfo[];
           snapshot?: { version: number; published_at: string | null; generated_at: string } | null;
           sets?: ContestSetItem[];
           tieBreakers?: { criterion: string; direction: string }[];
@@ -126,9 +141,25 @@ export function LeaderboardTable({
           return;
         }
 
+        // If viewing the active round and a newer round went live, switch automatically
+        if (
+          payload.currentRound &&
+          viewingRound === currentRound &&
+          payload.currentRound > currentRound
+        ) {
+          const nextUrl = competitionSlug
+            ? `/leaderboard?comp=${encodeURIComponent(competitionSlug)}`
+            : '/leaderboard';
+          router.push(nextUrl);
+          router.refresh();
+          return;
+        }
+
         versionRef.current = payload.snapshot.version;
         if (payload.entries) setEntries(payload.entries);
         if (payload.tieBreakers) setTieBreakers(payload.tieBreakers);
+        if (payload.rounds) setRounds(payload.rounds);
+        if (payload.currentRound) setCurrentRound(payload.currentRound);
         setLastUpdated(payload.snapshot.published_at || payload.snapshot.generated_at);
       } catch {
         // Ignore transient network errors and retry on next 20s tick
@@ -139,7 +170,7 @@ export function LeaderboardTable({
       void poll();
     }, 20000);
     return () => clearInterval(interval);
-  }, [autoRefresh, competitionSlug, router]);
+  }, [autoRefresh, competitionSlug, currentRound, viewingRound, router]);
 
   // Fullscreen helper
   function toggleFullScreen() {
@@ -289,6 +320,61 @@ export function LeaderboardTable({
             </span>
           </div>
           <span className="text-xs font-mono">Unpublished draft</span>
+        </div>
+      )}
+
+      {/* Round Switcher (Current Leaderboard vs Greyed-Out Completed Rounds) */}
+      {rounds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {rounds.map((r) => {
+            const isCurrent = r.status === 'CURRENT';
+            const isSelected = r.round_number === viewingRound;
+            const hrefParams = new URLSearchParams();
+            if (competitionSlug) hrefParams.set('comp', competitionSlug);
+            if (!isCurrent) hrefParams.set('round', String(r.round_number));
+            const qs = hrefParams.toString();
+            const href = qs ? `/leaderboard?${qs}` : '/leaderboard';
+
+            if (isCurrent) {
+              return (
+                <Link
+                  key={r.round_number}
+                  href={href}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                    isSelected
+                      ? isProjectorMode
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                      : isProjectorMode
+                      ? 'border-emerald-500/30 bg-zinc-900 text-emerald-400 hover:bg-emerald-500/10'
+                      : 'border-emerald-500/25 bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5'
+                  }`}
+                >
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Current Leaderboard (Round {r.round_number})</span>
+                </Link>
+              );
+            }
+
+            return (
+              <Link
+                key={r.round_number}
+                href={href}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  isSelected
+                    ? isProjectorMode
+                      ? 'bg-zinc-800 border-zinc-600 text-zinc-200'
+                      : 'bg-zinc-200/80 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200'
+                    : isProjectorMode
+                    ? 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                    : 'bg-zinc-100 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                }`}
+              >
+                <span>Round {r.round_number}</span>
+                <span className="text-[10px] uppercase tracking-wider opacity-75">Completed</span>
+              </Link>
+            );
+          })}
         </div>
       )}
 

@@ -39,9 +39,15 @@ export async function upsertLabContestSetAction(
   const setCode = (formData.get('set_code') as string) ?? '';
   const labInchargeName = (formData.get('lab_incharge_name') as string) ?? '';
   const hackerrankSlug = (formData.get('hackerrank_slug') as string) ?? '';
+  const roundRaw = formData.get('round_number') as string | null;
   const rawCookie = ((formData.get('hr_session_cookie') as string | null) ?? '')
     .replace(/[\r\n]+/g, '')
     .trim();
+
+  const roundNumber = roundRaw ? Number.parseInt(roundRaw, 10) : 1;
+  if (!Number.isFinite(roundNumber) || roundNumber < 1 || roundNumber > 10) {
+    return { error: 'Round number must be between 1 and 10.' };
+  }
 
   if (!isValidUuid(competitionId)) {
     return { error: 'Invalid competition ID.' };
@@ -74,6 +80,7 @@ export async function upsertLabContestSetAction(
     .from('contest_sets')
     .insert({
       competition_id: competitionId,
+      round_number: roundNumber,
       set_name: setName.trim(),
       set_code: normalizedSetCode,
       hackerrank_slug: extractedSlug,
@@ -86,9 +93,13 @@ export async function upsertLabContestSetAction(
     .single();
 
   if (error || !inserted) {
-    if (error?.code === '23505' || error?.message.includes('contest_sets_competition_id_set_code_key')) {
+    if (
+      error?.code === '23505' ||
+      error?.message.includes('contest_sets_competition_id_set_code_key') ||
+      error?.message.includes('contest_sets_competition_id_round_number_set_code_key')
+    ) {
       return {
-        error: `A set with code "${normalizedSetCode}" already exists in this competition. Open it below or choose another Set Code.`,
+        error: `A set with code "${normalizedSetCode}" already exists for Round ${roundNumber} in this competition. Open it below or choose another Set Code.`,
       };
     }
     return { error: error?.message || 'Failed to add contest set.' };
@@ -302,17 +313,21 @@ export async function syncContestSetFromHackerRank(
   const now = new Date().toISOString();
   const status = errors.length > 0 ? 'VALIDATION_FAILED' : canAutoApprove ? 'APPROVED' : 'PENDING_APPROVAL';
 
-  // 5. Cross-set collision detection: Check if external_ids exist in other sets of this competition
+  const setRoundNumber = (set as { round_number?: number | null }).round_number ?? 1;
+
+  // 5. Cross-set collision detection: Check if external_ids exist in other sets of this SAME round
   const { data: existingParticipants } = await supabase
     .from('participants')
-    .select('external_id, set_id, contest_sets(set_name)')
+    .select('external_id, set_id, contest_sets(set_name, round_number)')
     .eq('competition_id', set.competition_id)
     .neq('set_id', setId);
 
   const existingMap = new Map<string, string>();
   existingParticipants?.forEach((p) => {
+    const cs = p.contest_sets as unknown as { set_name?: string; round_number?: number | null } | null;
+    if ((cs?.round_number ?? 1) !== setRoundNumber) return;
     const handle = p.external_id.toLowerCase().trim();
-    const setName = (p.contest_sets as unknown as { set_name: string })?.set_name || 'Other Set';
+    const setName = cs?.set_name || 'Other Set';
     existingMap.set(handle, setName);
   });
 
@@ -415,7 +430,7 @@ export async function syncContestSetFromHackerRank(
     }
   }
 
-  // 8. Auto-publish live leaderboard if this set has one-time Super Admin approval
+  // 8. Auto-publish live leaderboard for this set's round if it has one-time Super Admin approval
   let autoPublished = false;
   if (canAutoApprove && valid.length > 0) {
     const snapRes = await createCompetitionSnapshot(
@@ -424,6 +439,7 @@ export async function syncContestSetFromHackerRank(
       {
         publishImmediately: true,
         auditAction: 'LEADERBOARD_AUTO_PUBLISHED',
+        roundNumber: setRoundNumber,
       },
     );
     if (snapRes.error) {

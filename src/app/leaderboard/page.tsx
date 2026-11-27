@@ -16,15 +16,22 @@ export const metadata = {
 export const instant = false;
 
 interface PageProps {
-  searchParams?: Promise<{ comp?: string }>;
+  searchParams?: Promise<{ comp?: string; round?: string }>;
 }
 
 export default async function LeaderboardPage({ searchParams }: PageProps) {
   await connection();
   const resolvedParams = searchParams ? await searchParams : undefined;
   const requestedSlug = resolvedParams?.comp?.trim() || undefined;
+  const parsedRound = resolvedParams?.round ? Number.parseInt(resolvedParams.round, 10) : undefined;
+  const requestedRound =
+    parsedRound !== undefined && Number.isFinite(parsedRound) && parsedRound > 0
+      ? parsedRound
+      : undefined;
 
-  const data = await getCachedLeaderboardData(requestedSlug);
+  const data = requestedRound !== undefined
+    ? await getCachedLeaderboardData(requestedSlug, requestedRound)
+    : await getCachedLeaderboardData(requestedSlug);
 
   if (data.status === 'NOT_FOUND_FOR_SLUG') {
     return (
@@ -107,10 +114,17 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              <span className="size-2 rounded-sm bg-emerald-600" />
-              <span>Live standings</span>
-            </div>
+            {data.viewingRound === data.currentRound ? (
+              <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="size-2 rounded-sm bg-emerald-600 animate-pulse" />
+                <span>Current Leaderboard (Round {data.currentRound})</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <span className="size-2 rounded-sm bg-zinc-400" />
+                <span>Round {data.viewingRound} (Completed)</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -143,7 +157,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         {/* Contestant Leaderboard Table */}
         {currentSnapshot && rowItems.length > 0 ? (
           <LeaderboardTable
-            key={activeComp.competition_id}
+            key={`${activeComp.competition_id}-${data.viewingRound}`}
             entries={rowItems}
             sets={contestSets}
             topK={activeComp.top_k}
@@ -153,6 +167,9 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
             isDraft={isDraft}
             tieBreakers={data.tieBreakers}
             lastUpdated={currentSnapshot.published_at || currentSnapshot.generated_at}
+            rounds={data.rounds}
+            currentRound={data.currentRound}
+            viewingRound={data.viewingRound}
           />
         ) : (
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 sm:p-16 text-center">

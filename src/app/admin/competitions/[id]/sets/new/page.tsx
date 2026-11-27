@@ -22,8 +22,9 @@ export default async function NewContestSetPage({ params }: PageProps) {
       .single(),
     supabase
       .from('contest_sets')
-      .select('set_id, set_name, set_code, hackerrank_slug')
+      .select('set_id, round_number, set_name, set_code, hackerrank_slug')
       .eq('competition_id', competitionId)
+      .order('round_number', { ascending: true })
       .order('set_code', { ascending: true }),
   ]);
 
