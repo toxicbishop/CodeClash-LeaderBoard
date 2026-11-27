@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatTimeTaken } from '@/lib/format/time';
 
 export interface LeaderboardRowItem {
   entry_id: string;
@@ -213,7 +214,7 @@ export function LeaderboardTable({
       'Full Name',
       'Contest Set',
       'Total Score',
-      'Penalty (s)',
+      'Time Taken (MM:SS)',
       'Qualification Status',
     ];
 
@@ -223,7 +224,7 @@ export function LeaderboardTable({
       `"${e.participant_name.replace(/"/g, '""')}"`,
       `"${e.set_name.replace(/"/g, '""')}"`,
       e.total_score,
-      e.penalty ?? '',
+      formatTimeTaken(e.penalty, ''),
       e.qualification_status,
     ]);
 
@@ -352,6 +353,9 @@ export function LeaderboardTable({
                   </span>
                   <span className="text-xs text-zinc-500 ml-1">pts</span>
                 </div>
+                <div className="text-xs font-mono tabular-nums text-zinc-500 dark:text-zinc-400">
+                  {formatTimeTaken(podium.rank2.penalty)}
+                </div>
               </div>
             </div>
           )}
@@ -390,6 +394,9 @@ export function LeaderboardTable({
                   </span>
                   <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">pts</span>
                 </div>
+                <div className="text-xs font-mono tabular-nums text-amber-600/80 dark:text-amber-400/80">
+                  {formatTimeTaken(podium.rank1.penalty)}
+                </div>
               </div>
             </div>
           )}
@@ -427,6 +434,9 @@ export function LeaderboardTable({
                     {podium.rank3.total_score}
                   </span>
                   <span className="text-xs text-zinc-500 ml-1">pts</span>
+                </div>
+                <div className="text-xs font-mono tabular-nums text-zinc-500 dark:text-zinc-400">
+                  {formatTimeTaken(podium.rank3.penalty)}
                 </div>
               </div>
             </div>
@@ -577,7 +587,7 @@ export function LeaderboardTable({
               <th className="px-6 py-4">Contestant</th>
               <th className="px-6 py-4">Contest set</th>
               <th className="px-6 py-4 text-right">Score</th>
-              <th className="px-6 py-4 text-right">Penalty</th>
+              <th className="px-6 py-4 text-right">Time Taken</th>
               <th className="px-6 py-4 text-center">Status</th>
             </tr>
           </thead>
@@ -683,9 +693,9 @@ export function LeaderboardTable({
                       </span>
                     </td>
 
-                    {/* Penalty */}
+                    {/* Time Taken */}
                     <td className="px-6 py-4 text-right font-mono text-xs tabular-nums text-zinc-400">
-                      {item.penalty !== null ? `${item.penalty}s` : '—'}
+                      {formatTimeTaken(item.penalty)}
                     </td>
 
                     {/* Status */}
@@ -725,10 +735,13 @@ export function LeaderboardTable({
         <div className="text-xs font-mono">
           {tieBreakers && tieBreakers.length > 0 ? (
             <span>
-              Tiebreakers: {tieBreakers.map((t) => `${t.criterion} (${t.direction.toLowerCase()})`).join(' → ')}
+              Tiebreakers:{' '}
+              {tieBreakers
+                .map((t) => `${t.criterion === 'penalty' ? 'time taken' : t.criterion} (${t.direction.toLowerCase()})`)
+                .join(' → ')}
             </span>
           ) : (
-            <span>Tiebreakers: score (desc) &rarr; solved (desc) &rarr; penalty (asc)</span>
+            <span>Tiebreakers: score (desc) &rarr; solved (desc) &rarr; time taken (asc)</span>
           )}
         </div>
       </div>

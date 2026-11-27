@@ -67,9 +67,9 @@ export default function TiebreakersPage() {
                     Tier 3
                   </span>
                   <div>
-                    <h3 className="font-medium text-zinc-900 dark:text-zinc-100">Penalty Time (Ascending)</h3>
+                    <h3 className="font-medium text-zinc-900 dark:text-zinc-100">Time Taken (Ascending)</h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      Total cumulative time in seconds from contest start to the last accepted submission, plus any incorrect submission penalty seconds. Lower penalty time ranks above higher.
+                      Total cumulative time from contest start to the last accepted submission, plus any incorrect submission penalty time (displayed as MM:SS). Lower time taken ranks above higher.
                     </p>
                   </div>
                 </div>

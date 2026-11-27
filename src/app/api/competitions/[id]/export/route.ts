@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAnyAuthorizedUser } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isValidUuid } from '@/lib/validation/uuid';
+import { formatTimeTaken } from '@/lib/format/time';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       'Set Code',
       'Total Score',
       'Problems Solved',
-      'Penalty (seconds)',
+      'Time Taken (MM:SS)',
       'Qualification Status',
     ].join(',');
 
@@ -159,7 +160,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         sanitizeCsvValue(row.contest_sets?.set_code),
         row.total_score,
         row.problems_solved ?? 0,
-        row.penalty ?? '',
+        sanitizeCsvValue(formatTimeTaken(row.penalty, '')),
         sanitizeCsvValue(row.qualification_status),
       ].join(',');
     });

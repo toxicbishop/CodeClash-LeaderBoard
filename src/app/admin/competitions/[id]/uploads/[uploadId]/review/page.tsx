@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
+import { formatTimeTaken } from '@/lib/format/time';
 import ReviewActionsClient from './ReviewActionsClient';
 
 export const instant = false;
@@ -103,7 +104,7 @@ export default async function UploadReviewPage({ params }: PageProps) {
                   <tr>
                     <th className="px-4 py-3">Hacker Username</th>
                     <th className="px-4 py-3">Total Score</th>
-                    <th className="px-4 py-3">Penalty / Time</th>
+                    <th className="px-4 py-3">Time Taken</th>
                     <th className="px-4 py-3">Collision Flag</th>
                   </tr>
                 </thead>
@@ -121,8 +122,8 @@ export default async function UploadReviewPage({ params }: PageProps) {
                         <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">
                           {res?.total_score ?? '—'}
                         </td>
-                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
-                          {res?.penalty ?? '—'}s
+                        <td className="px-4 py-3 font-mono text-zinc-600 dark:text-zinc-300">
+                          {formatTimeTaken(res?.penalty)}
                         </td>
                         <td className="px-4 py-3">
                           {p.has_collision ? (

@@ -29,7 +29,7 @@ const CRITERION_METADATA: Record<string, { label: string; desc: string; defaultD
     defaultDir: 'DESC',
   },
   penalty: {
-    label: 'Cumulative Time Penalty',
+    label: 'Time Taken',
     desc: 'Total elapsed time plus penalty increments for incorrect submissions (lower is better).',
     defaultDir: 'ASC',
   },
