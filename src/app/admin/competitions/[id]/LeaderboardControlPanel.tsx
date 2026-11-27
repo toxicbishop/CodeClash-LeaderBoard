@@ -43,7 +43,7 @@ export function LeaderboardControlPanel({
         setErrorMsg(res.error);
       } else {
         const data = res?.data as { version?: number } | undefined;
-        setSuccessMsg(`Leaderboard snapshot v${data?.version ?? ''} generated successfully!`);
+        setSuccessMsg(`Leaderboard snapshot v${data?.version ?? ''} generated and published live!`);
         router.refresh();
       }
     });
@@ -166,7 +166,7 @@ export function LeaderboardControlPanel({
       {snapshots.length === 0 ? (
         <div className="text-center py-10 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
           <p className="text-xs text-zinc-500">
-            No snapshots have been generated yet. Approve set uploads and click &quot;Generate New Snapshot&quot; above.
+            No snapshots have been generated yet. Approve set uploads and click &quot;Generate manual snapshot&quot; above.
           </p>
         </div>
       ) : (

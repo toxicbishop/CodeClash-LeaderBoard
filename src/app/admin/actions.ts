@@ -587,8 +587,8 @@ export async function generateLeaderboard(competitionId: string): Promise<Action
   }
 
   return createCompetitionSnapshot(competitionId, user.id, {
-    publishImmediately: false,
-    auditAction: 'LEADERBOARD_GENERATED',
+    publishImmediately: true,
+    auditAction: 'LEADERBOARD_PUBLISHED',
   });
 }
 
