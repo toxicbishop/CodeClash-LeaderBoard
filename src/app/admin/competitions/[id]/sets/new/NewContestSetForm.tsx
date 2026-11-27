@@ -155,17 +155,7 @@ export function NewContestSetForm({
             ))}
           </div>
         </div>
-        <input
-          type="number"
-          min={1}
-          max={10}
-          value={roundsCount}
-          onChange={(e) => handleRoundsChange(Number.parseInt(e.target.value, 10))}
-          className="mt-1 block w-full px-3 py-2 text-sm font-mono rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <p className="mt-1 text-[11px] text-zinc-500">
-          Creates Round 1 through Round {roundsCount} for this set inside the same competition.
-        </p>
+
       </div>
 
       <div className="space-y-3 pt-1">
