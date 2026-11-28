@@ -1,12 +1,12 @@
 # Relational Data Model
 
-This document outlines the relational database schema, integrity constraints, and snapshot architecture implemented with PostgreSQL and Prisma ORM, matching Section 11 of `Revised_LeaderBoardManagement(CodeClash).docx` (Version 2.0).
+This document describes the production PostgreSQL schema, integrity constraints, and snapshot architecture as implemented in `supabase/migrations/`. The system uses **Supabase** (hosted PostgreSQL with Row-Level Security) as its data layer.
 
 ---
 
 ## Entity Relationship Overview
 
-The database is organized around **competitions** and **contest sets** rather than physical laboratories:
+The database is organized around **competitions**, **contest sets**, and **rounds**:
 
 ```mermaid
 erDiagram
@@ -38,7 +38,7 @@ Stores all administrative and institutional monitoring accounts with role-based 
 | `id` | `UUID` | `PRIMARY KEY`, default `gen_random_uuid()` | Unique user identifier |
 | `name` | `VARCHAR(100)` | `NOT NULL` | Full name of the user |
 | `email` | `VARCHAR(255)` | `NOT NULL`, `UNIQUE` | Unique login email address |
-| `password_hash` | `VARCHAR(255)` | `NOT NULL` | Secure salted password hash (bcrypt/argon2) |
+| `password_hash` | `VARCHAR(255)` | `NOT NULL` | Secure salted password hash |
 | `role` | `ENUM` | `NOT NULL` (`SUPER_ADMIN`, `MASTER_LAB_ADMIN`, `HOD`, `PRINCIPAL`) | Authorization tier |
 | `is_active` | `BOOLEAN` | `DEFAULT TRUE` | Account active toggle |
 | `created_at` | `TIMESTAMPTZ` | `DEFAULT NOW()` | Account creation timestamp |
@@ -64,18 +64,23 @@ Represents an independent coding competition lifecycle.
 ---
 
 ### 3. `contest_sets`
-Defines independent contest sets (replacing physical lab entities) configured per competition.
+Defines independent contest sets per competition. Each set may span **multiple rounds**, with a distinct HackerRank slug per round.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY`, default `gen_random_uuid()` | Unique contest set identifier |
 | `competition_id` | `UUID` | `FOREIGN KEY (competitions.id)`, `NOT NULL` | Parent competition reference |
 | `set_name` | `VARCHAR(100)` | `NOT NULL` | Human-readable name (e.g., `Set A`) |
-| `set_code` | `VARCHAR(50)` | `NOT NULL` | Unique machine code (e.g., `SET_A`) |
-| `contest_url` | `VARCHAR(500)` | `NULLABLE` | Contest platform URL (e.g., `/setA`) |
+| `set_code` | `VARCHAR(50)` | `NOT NULL` | Machine identifier (e.g., `setA`) |
+| `round_number` | `INTEGER` | `NOT NULL`, `DEFAULT 1`, `CHECK (round_number > 0)` | Round index within the competition |
+| `hackerrank_slug` | `VARCHAR(500)` | `NOT NULL` | HackerRank contest slug or URL for this set's round |
+| `auto_sync_status` | `ENUM` | (`PENDING_APPROVAL`, `APPROVED`, `REJECTED`) | Lab auto-sync approval state |
 | `is_active` | `BOOLEAN` | `DEFAULT TRUE` | Active operational status |
 
-*Constraints:* `UNIQUE (competition_id, set_code)` and `UNIQUE (competition_id, set_name)`.
+*Constraints:* `UNIQUE (competition_id, round_number, set_code)` — a set code may be reused across different rounds of the same competition, but not within the same round.
+
+> [!IMPORTANT]
+> `round_number` was added in migration `20261128000000_multi_round_support.sql`. Scores are **not** cumulated across rounds; each round produces its own independent leaderboard snapshot.
 
 ---
 
@@ -88,7 +93,7 @@ Tracks raw file uploads per contest set, versioning, and the 3-tier status lifec
 | `contest_set_id` | `UUID` | `FOREIGN KEY (contest_sets.id)`, `NOT NULL` | Associated contest set |
 | `uploaded_by` | `UUID` | `FOREIGN KEY (users.id)`, `NOT NULL` | Master Lab Admin reference |
 | `original_filename`| `VARCHAR(255)`| `NOT NULL` | Original client filename |
-| `stored_filename` | `VARCHAR(500)` | `NOT NULL` | Secure private disk or cloud storage path |
+| `stored_filename` | `VARCHAR(500)` | `NOT NULL` | Secure private storage path |
 | `version_number` | `INTEGER` | `NOT NULL`, `DEFAULT 1` | Incremental upload version |
 | `upload_status` | `ENUM` | `NOT NULL` (`PENDING`, `UPLOADED`, `FAILED`) | File ingestion status |
 | `validation_status`| `ENUM` | `NOT NULL` (`PENDING`, `VALID`, `INVALID`) | Schema and row integrity status |
@@ -151,13 +156,14 @@ Stores the lexicographical tie-breaking criteria configured for a competition.
 ---
 
 ### 8. `leaderboard_snapshots`
-Stores versioned, immutable publications of the consolidated rankings.
+Stores versioned, immutable publications of consolidated rankings. Each snapshot is scoped to a **specific round**.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY`, default `gen_random_uuid()` | Unique snapshot identifier |
 | `competition_id` | `UUID` | `FOREIGN KEY (competitions.id)`, `NOT NULL` | Competition reference |
-| `version_number` | `INTEGER` | `NOT NULL`, `DEFAULT 1` | Incremental version number |
+| `round_number` | `INTEGER` | `NOT NULL`, `DEFAULT 1`, `CHECK (round_number > 0)` | Round this snapshot belongs to |
+| `version_number` | `INTEGER` | `NOT NULL`, `DEFAULT 1` | Incremental version number within the round |
 | `generated_by` | `UUID` | `FOREIGN KEY (users.id)`, `NOT NULL` | User who triggered consolidation |
 | `approved_by` | `UUID` | `FOREIGN KEY (users.id)`, `NULLABLE` | Super Admin who approved |
 | `published_by` | `UUID` | `FOREIGN KEY (users.id)`, `NULLABLE` | Super Admin who published |
@@ -197,9 +203,16 @@ Provides an immutable ledger of all administrative and lifecycle operations.
 
 ---
 
+## Views
+
+### `public_leaderboard`
+A PostgreSQL view that joins `leaderboard_entries`, `leaderboard_snapshots`, `competitions`, `participants`, and `contest_sets` to expose only `PUBLISHED` snapshots for `PUBLISHED` competitions. Includes `round_number` from `leaderboard_snapshots` for round-aware display. Grants `SELECT` to `anon` and `authenticated`.
+
+---
+
 ## Column Mapping Schema
 
-During ingestion, source headers from various platform exports are mapped to standardized internal fields via this JSON schema:
+During ingestion, source headers from various platform exports are mapped to standardized internal fields:
 
 ```json
 {
@@ -217,8 +230,10 @@ During ingestion, source headers from various platform exports are mapped to sta
 
 ## Consistency Rules & Data Integrity
 
-1. **Uniqueness:** A participant identifier can only exist once per competition. The validation engine flags cross-set collisions if the same `participant_code` appears in multiple set files.
-2. **Snapshot Immutability:** Once `status = 'PUBLISHED'` on a `leaderboard_snapshot`, its related records in `leaderboard_entries` are read-only. Updates require generating an incremented version snapshot (`version_number = 2`).
-3. **Decimals & Precision:** Scores use `NUMERIC(8,2)` to guarantee exact fractional mark representations without IEEE 754 floating-point inaccuracies.
-4. **Completion Lock:** Database constraints and application logic prevent triggering consolidation unless every active contest set has an approved upload.
-5. **Transactional Atomicity:** Consolidation, snapshot creation, and publication procedures execute within atomic SQL transactions.
+1. **Round Isolation:** Scores are **not** cumulated across rounds. Each round is a self-contained contest. The same set code (e.g., `setA`) may appear in Round 1 and Round 2 with different HackerRank slugs and independent results.
+2. **Uniqueness:** `UNIQUE (competition_id, round_number, set_code)` enforces that a set code is unique within a round, not across all rounds.
+3. **Participant Uniqueness:** A participant identifier exists once per competition (`UNIQUE (competition_id, participant_code)`). The validation engine flags cross-set collisions within the same round.
+4. **Snapshot Immutability:** Once `status = 'PUBLISHED'` on a `leaderboard_snapshot`, its related `leaderboard_entries` are read-only. Corrections require generating an incremented version snapshot (`version_number = 2`).
+5. **Decimals & Precision:** Scores use `NUMERIC(8,2)` to guarantee exact fractional mark representations without IEEE 754 floating-point inaccuracies.
+6. **Completion Lock:** Consolidation is blocked unless every active contest set for the target round has an approved upload.
+7. **Transactional Atomicity:** Consolidation, snapshot creation, and publication execute within atomic SQL transactions.

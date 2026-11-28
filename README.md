@@ -4,12 +4,13 @@
 ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-F69220?logo=pnpm&logoColor=white)
 ![ESLint](https://img.shields.io/badge/ESLint-4B32C3?logo=eslint&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Code Clash Leaderboard is a centralized platform for managing multi-lab coding competitions, featuring live HackerRank API leaderboard syncing, automated data validation, unified cross-set ranking, and Top K participant selection. Competition administrators set up contests and contest sets, while administrators can fetch live results directly from HackerRank contests or upload spreadsheets to consolidate participants into one shared, real-time leaderboard.
+Code Clash Leaderboard is a centralized platform for managing multi-lab, multi-round coding competitions. It features live HackerRank API leaderboard syncing every **5 seconds**, automated data validation, per-round contest set management, unified cross-set ranking, and Top-K participant selection. Competition administrators configure contests with multiple rounds and contest sets; Lab Admins fetch live results directly from HackerRank or upload spreadsheets; results are consolidated into a single authoritative, real-time leaderboard.
 
 ## Screenshots
 
@@ -23,20 +24,27 @@ Visual preview of the administrator sign-in portal and the competition overview 
 
 | Role | Primary Route | Core Capabilities |
 | --- | --- | --- |
-| **Super Admin** | `/admin` | Provision competitions, create contest sets, review uploaded submissions, approve/reject uploads, configure tie-breaking rules, trigger unified rankings, and publish leaderboards. |
-| **Master Lab Admin** | `/upload` | Access contest sets, ingest results via live HackerRank REST API sync or spreadsheet upload (CSV/Excel), validate participant entries, and submit for Super Admin approval. |
+| **Super Admin** | `/admin` | Provision competitions, create multi-round contest sets, review submissions, approve/reject uploads, configure tie-breaking rules, trigger unified rankings, and publish leaderboards. |
+| **Master Lab Admin** | `/upload` | Access contest sets per round, ingest results via live HackerRank API auto-sync (5 s) or spreadsheet upload (CSV/Excel), validate participant entries, and submit for Super Admin approval. |
 | **HOD / Principal** | `/monitor` | Real-time institutional monitoring dashboard to oversee event progress, participation metrics, and approved leaderboards without editing permissions. |
-| **Public / Participants** | `/leaderboard` | View real-time published leaderboards, contest-specific rankings, and Top-K qualifiers with tie-breaking breakdowns. |
+| **Public / Participants** | `/leaderboard` | View real-time published leaderboards with per-round tabs, contest-specific rankings, and Top-K qualifiers with tie-breaking breakdowns. |
 
-The centralized Version 2 architecture uses one **Master Lab Admin** to ingest independent contest-set results, while the **Super Admin** oversees approval, ranking configuration, and publication. Submissions are securely stored in Supabase, participant records are validated, and scores are merged across sets into a unified leaderboard. See the [delivery plan](docs/decisions-and-delivery.md).
+The centralized Version 2 architecture uses one **Master Lab Admin** to ingest independent contest-set results per round, while the **Super Admin** oversees approval, ranking configuration, and publication. Submissions are securely stored in Supabase with row-level security. Participant records are validated and scores are merged across sets and rounds into a unified leaderboard.
+
+> [!NOTE]
+> Each competition round is **independent** — scores are not cumulated across rounds. Each round produces its own leaderboard snapshot. See the [delivery plan](docs/decisions-and-delivery.md) for the full lifecycle.
 
 ## Architecture
 
 ![System Architecture](docs/assets/System-Architecture.png)
 
-The system architecture diagram illustrates the end-to-end flow from user and administrator actions through Next.js server components, authentication, Supabase persistence, and live leaderboard ingestion.
+The system uses the Next.js App Router with React Server Components and Server Actions, Supabase (PostgreSQL + Auth + Row-Level Security), and Tailwind CSS. The request proxy middleware refreshes Supabase sessions on every request. Protected pages load data exclusively through the server-side Supabase client. All database schema changes are versioned as PostgreSQL migrations in `supabase/migrations/`. Papa Parse handles CSV ingestion; `read-excel-file` processes Excel workbooks.
 
-The app uses the Next.js App Router, React, TypeScript, and Tailwind CSS. The request proxy refreshes Supabase sessions, and protected pages load data through the server client. PostgreSQL migrations define the contest tables and row-level security policies. Papa Parse reads CSV files and read-excel-file reads Excel workbooks.
+## Multi-Round Contest Sets
+
+Each contest set (e.g., Set A, Set B) can span **multiple rounds**. When adding a contest set, the Super Admin selects the number of rounds using the pill selector (1–4) and provides a distinct HackerRank slug for each round. The database enforces uniqueness per `(competition_id, round_number, set_code)`.
+
+The Lab Admin page and the public leaderboard both auto-sync against the HackerRank API every **5 seconds** when Auto-Sync is active. Round tabs on the leaderboard show completed rounds as greyed-out and the active round with a live pulse indicator.
 
 ## Local development
 
@@ -106,15 +114,16 @@ src/
 │   ├── admin/                         Super Admin console
 │   │   ├── page.tsx                   Competition dashboard & status overview
 │   │   ├── actions.ts                 Server actions for competitions, sets, and approvals
-│   │   ├── competitions/              Competition creation, contest set management, and upload reviews
+│   │   ├── competitions/              Competition creation, multi-round contest set management, upload reviews
+│   │   │   ├── [id]/sets/new/         Add contest set form with per-round slug inputs
 │   │   │   └── [id]/rules/            Configurable tie-breaking rules engine
 │   │   └── users/                     Account provisioning (Super Admin, Master Lab Admin, HOD, Principal)
 │   ├── upload/                        Master Lab Admin ingestion console
-│   │   ├── page.tsx                   Contest set selection overview
-│   │   ├── [setId]/                   Spreadsheet upload & live HackerRank sync client
+│   │   ├── page.tsx                   Contest set selection overview (grouped by round)
+│   │   ├── [setId]/                   Live HackerRank auto-sync (5 s) & spreadsheet upload client
 │   │   └── actions.ts                 Server actions for file ingestion and HackerRank fetch
 │   ├── leaderboard/                   Public unified competition leaderboard
-│   ├── competitions/[slug]/           Competition-specific published leaderboard
+│   ├── competitions/[slug]/leaderboard/  Per-competition leaderboard with round tabs & auto-refresh (5 s)
 │   ├── monitor/                       Read-only institutional monitoring dashboard
 │   └── api/competitions/[id]/export/  CSV export endpoint for competition rankings
 ├── components/                        Shared layout, navigation, and footer components
@@ -124,15 +133,18 @@ src/
 ├── lib/
 │   ├── auth/                          Role-based access guards (requireSuperAdmin, requireMasterLabAdmin, etc.)
 │   ├── hackerrank/                    HackerRank REST API client, SSRF protection, and entry validation
+│   ├── leaderboard/                   Cache, publish, and round-aware snapshot helpers
 │   ├── ranking/                       Consolidated ranking engine, Top-K calculation, and tie-breakers
-│   └── supabase/                      Browser, server, session, and service-role clients
+│   └── supabase/                      Browser, server, session, and service-role Supabase clients
 ├── proxy.ts                           Edge-compatible Next.js request proxy / middleware
-└── types/database.ts                  TypeScript definitions for database schema and roles
+└── types/database.ts                  TypeScript definitions for database schema, roles, and round support
 
 supabase/
-├── migrations/                        Versioned PostgreSQL schema and RLS policies
-├── tests/                             Database integration & permission tests
-└── config.toml                        Local Supabase configuration
+├── migrations/                        Versioned PostgreSQL schema migrations and RLS policies
+│   ├── 20261121000000_v2_centralized_schema.sql   Core v2 schema
+│   └── 20261128000000_multi_round_support.sql     round_number column, updated uniqueness constraints
+├── tests/                             Database integration & RLS permission tests (68 tests)
+└── config.toml                        Local Supabase stack configuration
 ```
 
 ## Checks and production build
@@ -144,7 +156,7 @@ supabase/
 | `pnpm build` | Create the production build using Webpack. |
 | `pnpm start` | Serve the production build after `pnpm build`. |
 | `pnpm test:signin` | Start the production build on port 3100 and verify the competition admin sign-in flow in Chromium. |
-| `pnpm test:permissions` | Check role and account-status enforcement in admin server actions. |
+| `pnpm test:permissions` | Check role and account-status enforcement in admin server actions (68 cases). |
 | `supabase test db` | Exercise upload row-level security against a migrated local Supabase database. |
 
 To run the sign-in test locally, use the local Supabase setup above, run `pnpm build`, and install Chromium with `pnpm exec playwright install chromium`. The test reads the admin credentials from the environment or `.env.local`.

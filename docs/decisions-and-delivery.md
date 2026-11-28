@@ -16,11 +16,11 @@ flowchart LR
 
 ### Phase 1: Core Infrastructure, Contest Sets & Role-Based Access Control
 * **Scope:**
-  * Initialize PostgreSQL database with Prisma ORM schema models: `users`, `competitions`, `contest_sets`, `uploads`, `participants`, `results`, `tiebreaker_rules`, `leaderboard_snapshots`, `leaderboard_entries`, and `audit_logs`.
-  * Implement session-based authentication with role-based guards: `SUPER_ADMIN`, `MASTER_LAB_ADMIN`, `HOD`, and `PRINCIPAL`.
-  * Build Super Admin competition management: competition setup, dynamic contest set configuration (e.g., Set A, Set B, Set C, Set D), and user account provisioning.
+  * Initialize Supabase PostgreSQL database with SQL migrations and Row-Level Security (RLS) policies for: `profiles`, `competitions`, `contest_sets`, `uploads`, `participants`, `results`, `tiebreaker_rules`, `leaderboard_snapshots`, `leaderboard_entries`, and `audit_logs`.
+  * Implement Supabase Auth session-based authentication with role-based guards: `SUPER_ADMIN`, `MASTER_LAB_ADMIN`, `HOD`, and `PRINCIPAL`.
+  * Build Super Admin competition management: competition setup, dynamic multi-round contest set configuration (e.g., Set A, Set B, Set C, Set D across Rounds 1–4 via `round_number`), and user account provisioning.
   * Build base Master Lab Admin console and dedicated monitoring shells for HOD and Principal.
-* **Exit Condition:** Super Admin can configure a competition with 4 contest sets and assign Master Lab Admin, HOD, and Principal accounts; each user can sign in and land on their respective dashboard.
+* **Exit Condition:** Super Admin can configure a competition with 4 contest sets (and optional multi-round slugs) and assign Master Lab Admin, HOD, and Principal accounts; each user can sign in and land on their respective dashboard.
 
 ---
 
@@ -41,8 +41,8 @@ flowchart LR
 
 ### Phase 3: Centralized Consolidation & Lexicographical Ranking Engine
 * **Scope:**
-  * Completion gate: Consolidation remains locked until all configured contest sets are uploaded, valid, and approved.
-  * Consolidation engine merging all approved set records into a unified dataset while preserving source upload references.
+  * Completion gate: Round-scoped consolidation remains locked until all configured contest sets for the target round are uploaded/synced, valid, and approved.
+  * Consolidation engine merging all approved set records within a given `round_number` into a unified dataset while preserving source upload references.
   * Configurable lexicographical ranking engine supporting dynamic criteria reordering and direction:
     * Primary: Descending `Total Score`.
     * Secondary: Descending `Problems Solved`.
@@ -52,21 +52,22 @@ flowchart LR
   * Shared rank assignment logic (e.g., tied at 1st place gives 1, 1, 3).
   * Purely merit-based cross-set ranking without artificial per-set quotas.
   * Automated Top-K boundary selector and tie-resolution review workflow.
-* **Exit Condition:** Given approved uploads across Sets A, B, C, D totaling 180 participants, the system consolidates them into a single ranked list, resolves ties lexicographically, handles shared ranks, and identifies the Top-K.
+* **Exit Condition:** Given approved uploads/syncs across Sets A, B, C, D for a round totaling 180 participants, the system consolidates them into a single round-scoped ranked list, resolves ties lexicographically, handles shared ranks, and identifies the Top-K.
 
 ---
 
 ### Phase 4: Leaderboard Publication, Public View & Exports
 * **Scope:**
   * Publication approval gate: Consolidated results held in `Ready for Review` draft status until Super Admin approval.
-  * One-click **Publish Leaderboard** generating an immutable snapshot (`v1.0`).
+  * One-click **Publish Leaderboard** generating an immutable round-scoped snapshot (`v1.0`).
   * Simplified public and contestant leaderboard route (`/leaderboard` and `/competitions/[slug]/leaderboard`):
     * High-contrast, responsive layout optimized for auditoriums, lab projectors, and mobile screens.
+    * Round tab switcher and 5-second auto-refresh polling (`Auto Sync: On (5s)`).
     * Search by participant name/code, filter by contest set, and toggle Top-K view.
     * Visual podium cards and qualification badges for Top-K contestants.
   * Export service: One-click export to CSV, Excel (`.xlsx`), and print-friendly PDF.
   * Versioned republication workflow (`v2.0`) in case of post-publication adjustments.
-* **Exit Condition:** The unified leaderboard is live on `/leaderboard`, displays identical rankings to all lab monitors simultaneously, and exports clean CSV/Excel files.
+* **Exit Condition:** The unified leaderboard is live on `/leaderboard`, refreshes every 5 seconds, displays identical rankings to all lab monitors simultaneously, and exports clean CSV/Excel files.
 
 ---
 
@@ -99,6 +100,8 @@ flowchart LR
 | **Institutional Monitoring**| **Confirmed** | Dedicated read-only dashboards for Principal and HOD. |
 | **Snapshot Immutability** | **Confirmed** | Published snapshots are immutable (`v1.0`); post-publication fixes yield version `v2.0`. |
 | **Public Endpoint** | **Confirmed** | Clean `/leaderboard` route showing contestant-facing unified standings. |
+| **Multi-Round Support** | **Confirmed** | Each contest set supports 1–4 independent rounds (`round_number` 1–4) with distinct HackerRank slugs; scores do not carry over between rounds. |
+| **Live Auto-Sync Interval** | **Confirmed** | Both the Lab Auto-Sync page and Public Leaderboard poll at a 5-second interval. |
 
 ---
 
@@ -126,3 +129,5 @@ Every milestone must pass this verification test plan:
 | **TC-16** | Export published leaderboard | Downloaded CSV/Excel matches onscreen rankings, scores, and qualification statuses. |
 | **TC-17** | Principal and HOD monitoring view | Both log in, view live competition metrics, set-wise leaderboards, and unified standings. |
 | **TC-18** | Institutional read-only enforcement | Principal or HOD attempting to POST to `/api/sets/:id/uploads` receives HTTP 403 Forbidden. |
+| **TC-19** | Multi-round set creation | Admin creates Set A with 3 rounds, each with a distinct HackerRank slug; 3 `contest_sets` rows created with `round_number` 1, 2, 3. |
+| **TC-20** | Round independence | Scores from Round 1 are not carried over to the Round 2 leaderboard or snapshot. |
