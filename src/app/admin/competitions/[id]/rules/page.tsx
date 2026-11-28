@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { RulesEditor } from './RulesEditor';
+import { FatFooter } from '@/components/FatFooter';
 
 export const instant = false;
 
@@ -30,10 +31,10 @@ export default async function TieBreakerRulesPage({ params }: PageProps) {
   if (!competition) notFound();
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin/competitions" adminName={profile.name} />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link
           href={`/admin/competitions/${competitionId}`}
           className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -56,6 +57,8 @@ export default async function TieBreakerRulesPage({ params }: PageProps) {
 
         <RulesEditor competitionId={competitionId} initialRules={rules || []} />
       </main>
+
+      <FatFooter currentCompetitionSlug={competition.slug} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { FatFooter } from '@/components/FatFooter';
 import { LeaderboardControlPanel, Snapshot } from './LeaderboardControlPanel';
 import { DeleteCompetitionButton } from '../DeleteCompetitionButton';
 import { DeleteSetButton } from './DeleteSetButton';
@@ -46,10 +47,10 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin/competitions" adminName={profile.name} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link href="/admin/competitions"
           className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
           ← Back to Competitions
@@ -281,6 +282,8 @@ export default async function CompetitionDetailPage({ params }: PageProps) {
           />
         </div>
       </main>
+
+      <FatFooter currentCompetitionSlug={competition.slug} />
     </div>
   );
 }

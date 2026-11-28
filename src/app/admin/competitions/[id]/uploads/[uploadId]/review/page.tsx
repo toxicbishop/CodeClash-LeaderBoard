@@ -4,6 +4,7 @@ import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { formatTimeTaken } from '@/lib/format/time';
 import ReviewActionsClient from './ReviewActionsClient';
+import { FatFooter } from '@/components/FatFooter';
 
 export const instant = false;
 
@@ -32,10 +33,10 @@ export default async function UploadReviewPage({ params }: PageProps) {
   if (!upload) notFound();
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin/competitions" adminName={profile.name} />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <Link
           href={`/admin/competitions/${competitionId}`}
           className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center space-x-1"
@@ -143,6 +144,8 @@ export default async function UploadReviewPage({ params }: PageProps) {
           )}
         </div>
       </main>
+
+      <FatFooter />
     </div>
   );
 }

@@ -38,7 +38,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col justify-between">
         <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 h-16 flex items-center px-4 sm:px-8">
           <Link href="/" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400">
-            Code Clash 2026
+            Code Clash
           </Link>
         </header>
 
@@ -66,7 +66,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col justify-between">
         <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 h-16 flex items-center px-4 sm:px-8">
           <Link href="/" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400">
-            Code Clash 2026
+            Code Clash
           </Link>
         </header>
 
@@ -106,7 +106,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                 href="/"
                 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400"
               >
-                Code Clash 2026
+                Code Clash
               </Link>
               <span className="text-zinc-300 dark:text-zinc-700">/</span>
               <span className="text-sm text-zinc-600 dark:text-zinc-400 truncate max-w-xs sm:max-w-md">
@@ -130,26 +130,43 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         {/* Contest Header */}
-        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-8 mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-zinc-900 dark:text-zinc-50">
+        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-6 mb-8">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div className="space-y-2">
+              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-balance text-zinc-900 dark:text-zinc-50">
                 {activeComp.competition_name} Standings
               </h1>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-3xl">
+              <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-2xl leading-relaxed">
                 {activeComp.description || 'Consolidated rankings across all contest sets with automated tiebreaker resolution and qualifier cutoff evaluation.'}
               </p>
             </div>
 
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono whitespace-nowrap">
-              {new Date(activeComp.contest_date).toLocaleDateString(undefined, {
-                weekday: 'short',
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })} &bull; Top {activeComp.top_k} Qualifiers
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-zinc-600 dark:text-zinc-300 shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <svg className="size-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <path d="M16 2v4M8 2v4M3 10h18" />
+                </svg>
+                {new Date(activeComp.contest_date).toLocaleDateString(undefined, {
+                  weekday: 'short',
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
+                <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                  <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                  <path d="M4 22h16" />
+                  <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                  <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                  <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                </svg>
+                Top {activeComp.top_k} Qualifiers
+              </span>
             </div>
           </div>
         </div>

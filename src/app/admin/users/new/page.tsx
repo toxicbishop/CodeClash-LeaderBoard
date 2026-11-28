@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { provisionUser } from '@/app/admin/actions';
+import { FatFooter } from '@/components/FatFooter';
 
 export const instant = false;
 
@@ -9,10 +10,10 @@ export default async function NewUserPage() {
   const { profile } = await requireSuperAdmin();
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin/users" adminName={profile.name} />
 
-      <main className="max-w-xl mx-auto px-4 py-8">
+      <main className="flex-1 w-full max-w-xl mx-auto px-4 py-8">
         <Link
           href="/admin/users"
           className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center space-x-1"
@@ -98,6 +99,8 @@ export default async function NewUserPage() {
           </form>
         </div>
       </main>
+
+      <FatFooter />
     </div>
   );
 }
