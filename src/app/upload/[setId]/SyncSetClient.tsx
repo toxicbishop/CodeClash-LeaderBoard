@@ -17,7 +17,7 @@ interface SyncSetClientProps {
   hasSavedCookie?: boolean;
 }
 
-const AUTO_SYNC_INTERVAL_MS = 10_000;
+const AUTO_SYNC_INTERVAL_MS = 5_000;
 const APPROVAL_POLL_INTERVAL_MS = 5_000;
 
 export default function SyncSetClient({
@@ -304,7 +304,7 @@ export default function SyncSetClient({
           <div className="flex items-center gap-2 font-semibold">
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>
-              Live Auto-Sync active {isSyncingNow ? '— syncing now...' : '— syncing to leaderboard every 10s'}
+              Live Auto-Sync active {isSyncingNow ? '— syncing now...' : '— syncing to leaderboard every 5s'}
             </span>
           </div>
           <span className="font-mono text-[11px]">

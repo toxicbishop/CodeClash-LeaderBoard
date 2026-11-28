@@ -168,7 +168,7 @@ export function LeaderboardTable({
 
     const interval = setInterval(() => {
       void poll();
-    }, 20000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [autoRefresh, competitionSlug, currentRound, viewingRound, router]);
 
@@ -566,10 +566,10 @@ export function LeaderboardTable({
                 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
                 : 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
-            title="Toggle continuous 20s leaderboard auto-refresh"
+            title="Toggle continuous 5s leaderboard auto-refresh"
           >
             {autoRefresh && <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-            {autoRefresh ? 'Auto Sync: On (20s)' : 'Auto Sync: Off'}
+            {autoRefresh ? 'Auto Sync: On (5s)' : 'Auto Sync: Off'}
           </button>
 
           {!isProjectorMode && (
