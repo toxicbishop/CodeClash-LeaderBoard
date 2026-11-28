@@ -37,60 +37,19 @@ body {
 }
 
 button, a, input, select {
-  transition-property: color, background-color, border-color, opacity;
+  transition-property: color, background-color, border-color, opacity, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: var(--ease-taste);
 }
 
-.login-form {
-  color-scheme: light dark;
+::selection {
+  background-color: rgba(79, 70, 229, 0.22);
+  color: inherit;
 }
 
-/* Paint over browser autofill background using solid flat styling */
-.login-form input:is(:autofill, :-webkit-autofill) {
-  box-shadow: inset 0 0 0 100px light-dark(#ffffff, #18181b);
-  -webkit-text-fill-color: light-dark(#09090b, #f4f4f5);
-  caret-color: light-dark(#09090b, #f4f4f5);
-}
-
-.login-form input:is(:autofill, :-webkit-autofill):focus {
+:focus-visible {
   outline: 2px solid #4f46e5;
-}
-
-/* Auditorium / Projector Mode Styles */
-.projector-view table {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-}
-
-.projector-view table th {
-  padding-top: 1.5rem;
-  padding-bottom: 1.5rem;
-  font-size: 0.875rem;
-}
-
-.projector-view table td {
-  padding-top: 1.5rem;
-  padding-bottom: 1.5rem;
-}
-
-@media print {
-  header,
-  button,
-  input,
-  .no-print {
-    display: none !important;
-  }
-
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-
-  .projector-view table,
-  table {
-    font-size: 10pt !important;
-  }
+  outline-offset: 2px;
 }
 
 .login-form {
@@ -111,20 +70,23 @@ button, a, input, select {
 /* ==========================================================================
    Projector View (Auditorium & Big-Screen Mode)
    ========================================================================== */
+.projector-mode table,
 .projector-view table {
   font-size: 1.125rem;
   line-height: 1.75rem;
 }
 
+.projector-mode table th,
 .projector-view table th {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
-  font-size: 0.875rem;
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
+  font-size: 0.8125rem;
 }
 
+.projector-mode table td,
 .projector-view table td {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
 }
 
 /* ==========================================================================
@@ -143,6 +105,7 @@ button, a, input, select {
     color: #000000 !important;
   }
 
+  .projector-mode table,
   .projector-view table,
   table {
     font-size: 10pt !important;

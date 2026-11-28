@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { FatFooter } from '@/components/FatFooter';
 import { AssignLabAdminCard } from './AssignLabAdminCard';
 import { SetAutoSyncActions } from './competitions/[id]/SetAutoSyncActions';
 import type { AutoSyncStatus } from '@/types/database';
@@ -46,15 +47,15 @@ export default async function AdminDashboardPage() {
     .filter((s) => s.latest?.status === 'PENDING_APPROVAL');
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin" adminName={profile.name} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Competition Overview</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              Centralized leaderboard management — Code Clash 2026.
+              Centralized leaderboard management.
             </p>
           </div>
           <div className="flex space-x-3">
@@ -212,6 +213,8 @@ export default async function AdminDashboardPage() {
           )}
         </div>
       </main>
+
+      <FatFooter />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import { logout } from '@/app/login/actions';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { FatFooter } from '@/components/FatFooter';
 import { isValidUuid } from '@/lib/validation/uuid';
 import { LabAddSetForm } from './LabAddSetForm';
 import Link from 'next/link';
@@ -44,7 +45,7 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -70,7 +71,7 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {!competition ? (
           <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 shadow-sm">
             <EmptyStateIcon name="flag" />
@@ -216,6 +217,8 @@ export default async function UploadDashboardPage({ searchParams }: PageProps) {
           </div>
         )}
       </main>
+
+      <FatFooter />
     </div>
   );
 }

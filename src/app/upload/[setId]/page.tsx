@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireMasterLabAdmin } from '@/lib/auth/guards';
 import type { AutoSyncStatus } from '@/types/database';
 import SyncSetClient from './SyncSetClient';
+import { FatFooter } from '@/components/FatFooter';
 
 export const instant = false;
 
@@ -36,7 +37,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
   const latest = uploads?.[0];
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
           <Link
@@ -51,7 +52,7 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 sm:p-8 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
@@ -156,6 +157,8 @@ export default async function ContestSetSyncDetailPage({ params }: PageProps) {
           </div>
         )}
       </main>
+
+      <FatFooter />
     </div>
   );
 }

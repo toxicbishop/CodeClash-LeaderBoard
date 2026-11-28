@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import EmptyStateIcon from '@/components/EmptyStateIcon';
+import { FatFooter } from '@/components/FatFooter';
 import { AdminNav } from '@/components/AdminNav';
 import { requireSuperAdmin } from '@/lib/auth/guards';
 import { DeleteCompetitionButton } from './DeleteCompetitionButton';
@@ -11,14 +12,14 @@ export default async function AdminCompetitionsPage() {
 
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('*, contest_sets(set_id, set_name, set_code)')
+    .select('*, contest_sets(set_id, round_number, set_name, set_code)')
     .order('created_at', { ascending: false });
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AdminNav currentPath="/admin/competitions" adminName={profile.name} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Competitions</h1>
@@ -42,7 +43,15 @@ export default async function AdminCompetitionsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {competitions.map((comp) => {
-                const sets = (comp.contest_sets as { set_id: string; set_name: string; set_code: string }[]) ?? [];
+                const sets = (comp.contest_sets as { set_id: string; round_number?: number | null; set_name: string; set_code: string }[]) ?? [];
+                const uniqueSetCodes = Array.from(new Set(sets.map((s) => s.set_code)));
+                const roundNumbers = Array.from(new Set(sets.map((s) => s.round_number ?? 1))).sort((a, b) => a - b);
+                const roundsLabel =
+                  sets.length === 0
+                    ? '0 rounds'
+                    : roundNumbers.length === 1
+                    ? `1 round (Round ${roundNumbers[0]})`
+                    : `${roundNumbers.length} rounds (${roundNumbers.map((r) => `R${r}`).join(', ')})`;
                 return (
                   <div key={comp.competition_id}
                     className="flex flex-col justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm hover:border-indigo-500/50 transition-colors">
@@ -70,9 +79,15 @@ export default async function AdminCompetitionsPage() {
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span>Rounds:</span>
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-200">
+                            {roundsLabel}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span>Contest Sets:</span>
                           <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-                            {sets.length} {sets.length === 1 ? 'set' : 'sets'} ({sets.map(s => s.set_code).join(', ') || '—'})
+                            {uniqueSetCodes.length} {uniqueSetCodes.length === 1 ? 'set' : 'sets'} ({uniqueSetCodes.join(', ') || '—'})
                           </span>
                         </div>
                       </div>
@@ -95,6 +110,8 @@ export default async function AdminCompetitionsPage() {
           )}
         </div>
       </main>
+
+      <FatFooter />
     </div>
   );
 }
